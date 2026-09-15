@@ -20,31 +20,34 @@ options remain available.
 - `default_color=0xAARRGGBB` provides a configurable capture fallback.
 - Existing per-window settings through `apply-to=<window-id>` are preserved.
 
-### Auto mode examples
+### Before and after
 
-These examples use `color=auto`. Each border follows the dominant color in
-that window's header, from very dark interfaces to light and themed windows.
+`color=auto` follows the dominant header color. `color=inverse` samples the
+same header and inverts its RGB value while preserving alpha.
 
-| Terminal | Dark window |
-| --- | --- |
-| <img src="images/auto-terminal.png" alt="Automatic border on a dark terminal window"> | <img src="images/auto-dark-window.png" alt="Automatic border on a dark application window"> |
+#### Terminal
 
-| Light browser | Red browser theme |
-| --- | --- |
-| <img src="images/auto-light-browser.png" alt="Automatic border on a light browser window"> | <img src="images/auto-red-browser.png" alt="Automatic border matching a red browser theme"> |
+| Before | Auto | Inverse |
+| --- | --- | --- |
+| <img src="images/before-terminal.png" alt="Terminal before automatic coloring"> | <img src="images/auto-terminal.png" alt="Terminal with automatic border color"> | <img src="images/inverse-terminal.png" alt="Terminal with inverse border color"> |
 
-### Inverse mode examples
+#### Dark window
 
-These examples use `color=inverse` on the same kinds of windows. The sampled
-header color is inverted while its alpha is preserved.
+| Before | Auto | Inverse |
+| --- | --- | --- |
+| <img src="images/before-dark-window.png" alt="Dark window before automatic coloring"> | <img src="images/auto-dark-window.png" alt="Dark window with automatic border color"> | <img src="images/inverse-dark-window.png" alt="Dark window with inverse border color"> |
 
-| Terminal | Dark window |
-| --- | --- |
-| <img src="images/inverse-terminal.png" alt="Inverse automatic border on a dark terminal window"> | <img src="images/inverse-dark-window.png" alt="Inverse automatic border on a dark application window"> |
+#### Light browser
 
-| Light browser | Red browser theme |
-| --- | --- |
-| <img src="images/inverse-light-browser.png" alt="Inverse automatic border on a light browser window"> | <img src="images/inverse-red-browser.png" alt="Inverse automatic border on a red browser theme"> |
+| Before | Auto | Inverse |
+| --- | --- | --- |
+| <img src="images/before-light-browser.png" alt="Light browser before automatic coloring"> | <img src="images/auto-light-browser.png" alt="Light browser with automatic border color"> | <img src="images/inverse-light-browser.png" alt="Light browser with inverse border color"> |
+
+#### Red browser theme
+
+| Before | Auto | Inverse |
+| --- | --- | --- |
+| <img src="images/before-red-browser.png" alt="Red browser theme before automatic coloring"> | <img src="images/auto-red-browser.png" alt="Red browser theme with automatic border color"> | <img src="images/inverse-red-browser.png" alt="Red browser theme with inverse border color"> |
 
 ## Usage
 
