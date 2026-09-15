@@ -12,6 +12,21 @@ Like the original project, AutoJankyBorders is a lightweight macOS utility for
 drawing borders around user windows. The original behavior and static color
 options remain available.
 
+## Why this?
+
+Not everyone enjoys the rounded-window aesthetic of macOS, especially when
+corner radii and window treatments vary from one application to another. For
+people who are particular about UI consistency, those small differences can
+be surprisingly distracting.
+
+JankyBorders already provides a lightweight way to bring a consistent outline
+to macOS windows. AutoJankyBorders builds on that idea by pairing the border
+with the most harmonious color it can derive for each individual window. It
+samples the window header, keeps the result specific to that window, and can
+either match the detected color or use its inverse. Combined with square
+borders, this creates a more deliberate and visually consistent desktop
+without requiring every application to follow the same design language.
+
 ## Fork features
 
 - `color=auto` selects a dominant color from each window's header.
@@ -64,6 +79,25 @@ Automatic modes require Screen Recording permission in **System Settings →
 Privacy & Security → Screen & System Audio Recording**. When permission or
 window capture is unavailable, `default_color` is used.
 
+#### Why Screen Recording permission is required
+
+macOS protects APIs that capture the contents of other applications' windows.
+AutoJankyBorders needs this permission only for `color=auto` and
+`color=inverse`: CoreGraphics temporarily provides an image of each target
+window in memory, and the fork examines a thin horizontal band in its header
+to determine the dominant color.
+
+AutoJankyBorders does not save screenshots, write captured pixels to disk, or
+send them over the network. The temporary image and pixel buffer are released
+immediately after the color is calculated. Only the resulting RGB color is
+cached for that window. Static modes such as `active_color` and
+`inactive_color` do not need screen capture.
+
+If permission is denied or later revoked, borders continue to work using
+`default_color`. Permission can be reviewed or removed at any time in **System
+Settings → Privacy & Security → Screen & System Audio Recording**. Restart the
+foreground process or Homebrew service after changing this permission.
+
 ### About the Homebrew version
 
 The official Homebrew formula installs upstream JankyBorders and does not
@@ -79,14 +113,18 @@ link locally if you specifically want the `borders` command to use this build.
 
 ### Install and run with Homebrew services
 
-This repository includes a HEAD-only local formula. Because AutoJankyBorders
-and upstream JankyBorders both install a command named `borders`, uninstall or
-unlink the upstream formula first:
+This repository includes a HEAD-only formula and can be used as a custom tap.
+Because AutoJankyBorders and upstream JankyBorders both install a command named
+`borders`, trust and uninstall the upstream formula first, then add this
+repository as an explicitly named tap:
 
 ```bash
+brew trust felixkratz/formulae
 brew services stop borders 2>/dev/null || true
 brew uninstall borders
-brew install --HEAD ./Formula/autojankyborders.rb
+brew tap spoulin/autojankyborders https://github.com/spoulin/AutoJankyBorders.git
+brew trust spoulin/autojankyborders
+brew install --HEAD spoulin/autojankyborders/autojankyborders
 ```
 
 Create `~/.config/borders/bordersrc` with the desired mode:
@@ -103,7 +141,7 @@ options=(
   order=above
 )
 
-borders "${options[@]}"
+/opt/homebrew/opt/autojankyborders/bin/borders "${options[@]}"
 ```
 
 Make the configuration executable, then launch the installed binary once in
@@ -128,6 +166,27 @@ The service starts at login and reads the same `bordersrc`. Logs are written to
 brew services stop autojankyborders
 brew uninstall autojankyborders
 ```
+
+If the borders remain gray, round, and static, the service is running with its
+defaults and did not apply `bordersrc`. Check the log:
+
+```bash
+tail -f "$(brew --prefix)/var/log/autojankyborders.log"
+```
+
+An error such as `borders: command not found` means the configuration should
+invoke the installed binary by its absolute path, as shown above. On Intel
+Macs, replace `/opt/homebrew` with `/usr/local`. Restart after changing the
+configuration:
+
+```bash
+brew services restart autojankyborders
+brew services info autojankyborders
+```
+
+`Running: true` and `Loaded: true` confirm that the service is active and
+registered to start when the user logs in. `Schedulable: false` is expected for
+this persistent service.
 
 This formula tracks the `main` branch because the fork does not yet publish
 versioned releases. Reinstall it to pick up newer commits:

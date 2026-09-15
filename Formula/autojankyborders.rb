@@ -17,6 +17,7 @@ class Autojankyborders < Formula
     run opt_bin/"borders"
     keep_alive true
     process_type :interactive
+    environment_variables PATH: std_service_path_env
     log_path var/"log/autojankyborders.log"
     error_log_path var/"log/autojankyborders.log"
   end
