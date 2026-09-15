@@ -118,6 +118,7 @@ void windows_update_all(struct table* windows) {
       if (bucket->value) {
         struct border* border = bucket->value;
         if (border) {
+          if (border_uses_auto_color(border)) border->needs_color_sample = true;
           border->needs_redraw = true;
           border_update(border, true);
         }
@@ -179,6 +180,7 @@ static bool windows_window_focus(struct table* windows, uint32_t wid) {
 
         if (!border->focused && border->target_wid == wid) {
           border->focused = true;
+          if (border_uses_auto_color(border)) border->needs_color_sample = true;
           border->needs_redraw = true;
           border_update(border, true);
         }

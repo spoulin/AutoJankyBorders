@@ -2,6 +2,7 @@
 #include "hashtable.h"
 #include "misc/extern.h"
 #include "windows.h"
+#include "auto_color.h"
 #include <pthread.h>
 #include <time.h>
 
@@ -12,6 +13,10 @@ struct settings* border_get_settings(struct border* border) {
   return border->setting_override.enabled
          ? &border->setting_override
          : &g_settings;
+}
+
+bool border_uses_auto_color(struct border* border) {
+  return border_get_settings(border)->auto_color;
 }
 
 static void border_destroy_window(struct border* border) {
@@ -61,6 +66,25 @@ static void border_draw(struct border* border, CGRect frame, struct settings* se
   struct color_style color_style = border->focused
                                    ? settings->active_window
                                    : settings->inactive_window;
+  if (settings->auto_color) {
+    if (!border->sampled_color_valid || border->needs_color_sample) {
+      uint32_t sampled_color = 0;
+      uint8_t alpha = settings->default_color >> 24;
+      bool captured = auto_color_sample_window(border->target_wid,
+                                                alpha,
+                                                &sampled_color);
+      if (captured && settings->invert_auto_color) {
+        sampled_color = auto_color_invert(sampled_color);
+      }
+      border->sampled_color = captured ? sampled_color : settings->default_color;
+      // Cache the fallback too: a denied capture must not be retried for every
+      // geometry update while a window is being resized.
+      border->sampled_color_valid = true;
+      border->needs_color_sample = false;
+    }
+    color_style.stype = COLOR_STYLE_SOLID;
+    color_style.color = border->sampled_color;
+  }
 
   CGGradientRef gradient = NULL;
   CGPoint gradient_dir[2];

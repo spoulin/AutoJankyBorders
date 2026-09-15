@@ -27,6 +27,19 @@ API, thereby being faster than comparable tools.
 *inactive_color=<color>*
 	Sets the border color for all windows not in focus.
 
+*color=auto*
+	Samples the color just inside each window edge and uses the resulting color
+	for that window. Screen Recording permission may be required. A regular
+	*color=<color>*, *active_color*, or *inactive_color* disables this mode.
+
+*color=inverse*
+	Samples the window header like *color=auto* and inverts the resulting RGB
+	components while preserving alpha. Black becomes white and vice versa.
+
+*default_color=0xAARRGGBB*
+	Sets the fallback used when automatic window capture fails. Its alpha
+	channel is also applied to colors sampled successfully.
+
 *background_color=<color>*
 	Sets the background fill color for all windows (only _0xAARRGGBB_ arguments supported).
 

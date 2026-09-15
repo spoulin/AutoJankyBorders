@@ -62,21 +62,52 @@ uint32_t parse_settings(struct settings* settings, int count, char** arguments) 
   static char active_color[] = "active_color";
   static char inactive_color[] = "inactive_color";
   static char background_color[] = "background_color";
+  static char default_color[] = "default_color";
   static char blacklist[] = "blacklist=";
   static char whitelist[] = "whitelist=";
 
   char order = 'a';
   uint32_t update_mask = 0;
   for (int i = 0; i < count; i++) {
-    if (str_starts_with(arguments[i], active_color)) {
+    if (strcmp(arguments[i], "color=auto") == 0) {
+      settings->auto_color = true;
+      settings->invert_auto_color = false;
+      update_mask |= BORDER_UPDATE_MASK_ALL;
+    }
+    else if (strcmp(arguments[i], "color=inverse") == 0) {
+      settings->auto_color = true;
+      settings->invert_auto_color = true;
+      update_mask |= BORDER_UPDATE_MASK_ALL;
+    }
+    else if (str_starts_with(arguments[i], "color=")) {
+      if (parse_color(&settings->active_window, arguments[i] + strlen("color"))) {
+        settings->inactive_window = settings->active_window;
+        settings->auto_color = false;
+        settings->invert_auto_color = false;
+        update_mask |= BORDER_UPDATE_MASK_ALL;
+      }
+    }
+    else if (str_starts_with(arguments[i], default_color)) {
+      struct color_style fallback;
+      if (parse_color(&fallback, arguments[i] + strlen(default_color))
+          && fallback.stype == COLOR_STYLE_SOLID) {
+        settings->default_color = fallback.color;
+        update_mask |= BORDER_UPDATE_MASK_ALL;
+      }
+    }
+    else if (str_starts_with(arguments[i], active_color)) {
       if (parse_color(&settings->active_window,
                                  arguments[i] + strlen(active_color))) {
+        settings->auto_color = false;
+        settings->invert_auto_color = false;
         update_mask |= BORDER_UPDATE_MASK_ACTIVE;
       }
     }
     else  if (str_starts_with(arguments[i], inactive_color)) {
       if (parse_color(&settings->inactive_window,
                                  arguments[i] + strlen(inactive_color))) {
+        settings->auto_color = false;
+        settings->invert_auto_color = false;
         update_mask |= BORDER_UPDATE_MASK_INACTIVE;
       }
     }

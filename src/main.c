@@ -35,6 +35,9 @@ struct settings g_settings = { .enabled = true,
                                                     .color =  0x00000000 },
                                .background = { .stype = COLOR_STYLE_SOLID,
                                                .color = 0x00000000         },
+                               .auto_color = false,
+                               .invert_auto_color = false,
+                               .default_color = 0xffe1e3e4,
                                .border_width = 4.f,
                                .blur_radius = 0,
                                .border_style = BORDER_STYLE_ROUND,
@@ -82,6 +85,7 @@ static void message_handler(void* data, uint32_t len) {
     if (border) {
       border->setting_override = settings;
       border->setting_override.enabled = true;
+      border->needs_color_sample = true;
       border->needs_redraw = true;
       border_update(border, true);
     }

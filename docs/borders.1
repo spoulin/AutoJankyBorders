@@ -40,6 +40,25 @@ instance, active_color=0xff00ff00 creates a green border.\&
 Sets the border color for all windows not in focus.\&
 .PP
 .RE
+\fBcolor=auto\fR
+.RS 4
+Samples the color just inside each window edge and uses the resulting color
+for that window.\& Screen Recording permission may be required.\& A regular
+\fBcolor=<color>\fR, \fBactive_color\fR, or \fBinactive_color\fR disables this mode.\&
+.PP
+.RE
+\fBcolor=inverse\fR
+.RS 4
+Samples the window header like \fBcolor=auto\fR and inverts the resulting RGB
+components while preserving alpha.\& Black becomes white and vice versa.\&
+.PP
+.RE
+\fBdefault_color=0xAARRGGBB\fR
+.RS 4
+Sets the fallback used when automatic window capture fails.\& Its alpha
+channel is also applied to colors sampled successfully.\&
+.PP
+.RE
 \fBbackground_color=<color>\fR
 .RS 4
 Sets the background fill color for all windows (only \fI0xAARRGGBB\fR arguments supported).\&

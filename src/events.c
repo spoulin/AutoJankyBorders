@@ -78,6 +78,24 @@ static void window_modify_handler(uint32_t event, uint32_t* window_id, size_t _,
     windows_window_update(windows, wid);
   } else if (event == EVENT_WINDOW_TITLE || event == EVENT_WINDOW_UPDATE) {
     debug("Window Focus\n");
+    struct border* border = table_find(windows, &wid);
+    if (border && border_uses_auto_color(border)) {
+      uint64_t generation = ++border->color_refresh_generation;
+      // Content and resize events arrive in bursts. Look the border up again
+      // after the burst (it may have been destroyed) and let only the newest
+      // scheduled refresh perform a capture.
+      DELAY_ASYNC_EXEC_ON_MAIN_THREAD(150000, {
+        uint32_t lookup_wid = wid;
+        struct border* current = table_find(&g_windows, &lookup_wid);
+        if (current
+            && current->color_refresh_generation == generation
+            && border_uses_auto_color(current)) {
+          current->needs_color_sample = true;
+          current->needs_redraw = true;
+          border_update(current, true);
+        }
+      });
+    }
     DELAY_ASYNC_EXEC_ON_MAIN_THREAD(50000, {
       windows_determine_and_focus_active_window(windows);
     });

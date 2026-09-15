@@ -36,6 +36,9 @@ struct settings {
   struct color_style inactive_window;
   struct color_style corner_mask;
   struct color_style background;
+  bool auto_color;
+  bool invert_auto_color;
+  uint32_t default_color;
 
   float border_width;
   float blur_radius;
@@ -80,6 +83,11 @@ struct border {
   CGRect drawing_bounds;
   CGContextRef context;
 
+  uint32_t sampled_color;
+  bool sampled_color_valid;
+  bool needs_color_sample;
+  uint64_t color_refresh_generation;
+
   struct animation animation;
   struct event_buffer event_buffer;
 
@@ -99,3 +107,4 @@ void border_hide(struct border* border);
 void border_unhide(struct border* border);
 
 struct settings* border_get_settings(struct border* border);
+bool border_uses_auto_color(struct border* border);
