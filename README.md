@@ -98,6 +98,20 @@ If permission is denied or later revoked, borders continue to work using
 Settings → Privacy & Security → Screen & System Audio Recording**. Restart the
 foreground process or Homebrew service after changing this permission.
 
+If AutoJankyBorders starts before permission is granted, existing windows may
+already have `default_color` cached. Granting permission does not retroactively
+replace every cached fallback, so stop and relaunch the process afterward:
+
+```bash
+pkill borders 2>/dev/null || true
+brew services restart autojankyborders
+```
+
+A `brew upgrade --fetch-HEAD` rebuild may also produce a new executable for
+which macOS requests Screen Recording access again. If all borders suddenly
+use `default_color` after an upgrade, launch the installed binary once in the
+foreground, grant access, and then restart the service.
+
 ### About the Homebrew version
 
 The official Homebrew formula installs upstream JankyBorders and does not
@@ -189,10 +203,12 @@ registered to start when the user logs in. `Schedulable: false` is expected for
 this persistent service.
 
 This formula tracks the `main` branch because the fork does not yet publish
-versioned releases. Reinstall it to pick up newer commits:
+versioned releases. Ask Homebrew to fetch HEAD when checking for newer commits:
 
 ```bash
-brew reinstall --HEAD autojankyborders
+brew services stop autojankyborders
+brew upgrade --fetch-HEAD autojankyborders
+brew services start autojankyborders
 ```
 
 ### Configuring the appearance
