@@ -174,6 +174,7 @@ static bool windows_window_focus(struct table* windows, uint32_t wid) {
         struct border* border = bucket->value;
         if (border->focused && border->target_wid != wid) {
           border->focused = false;
+          if (border_uses_auto_color(border)) border->needs_color_sample = true;
           border->needs_redraw = true;
           border_update(border, true);
         }
