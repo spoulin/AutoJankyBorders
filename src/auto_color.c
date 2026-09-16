@@ -194,11 +194,63 @@ static bool sample_patch(const uint8_t* pixels,
   return true;
 }
 
-static bool sample_corners_rgba(const uint8_t* pixels,
-                                size_t width,
-                                size_t height,
-                                size_t bytes_per_row,
-                                struct auto_colors* colors) {
+static uint8_t rgb_difference(uint32_t first, uint32_t second) {
+  uint8_t maximum = 0;
+  for (int shift = 0; shift <= 16; shift += 8) {
+    int difference = abs((int)((first >> shift) & 0xff)
+                         - (int)((second >> shift) & 0xff));
+    if (difference > maximum) maximum = difference;
+  }
+  return maximum;
+}
+
+static bool sample_top_accent(const uint8_t* pixels,
+                              size_t width,
+                              size_t height,
+                              size_t bytes_per_row,
+                              size_t x_inset,
+                              uint32_t top_left,
+                              uint32_t top_right,
+                              uint32_t* accent) {
+  enum { BAND_HEIGHT = 2, MINIMUM_COVERAGE_PERCENT = 60,
+         MINIMUM_CONTRAST = 24 };
+  size_t scan_depth = height / 4;
+  if (scan_depth > 32) scan_depth = 32;
+  if (!accent || width <= 2 * x_inset || scan_depth < BAND_HEIGHT) return false;
+
+  uint64_t best_score = 0;
+  uint32_t best_color = 0;
+  size_t band_width = width - 2 * x_inset;
+  for (size_t y = 3; y + BAND_HEIGHT <= scan_depth; ++y) {
+    struct sample_result result;
+    if (!sample_rgba(pixels + y * bytes_per_row + x_inset * 4,
+                     band_width, BAND_HEIGHT, bytes_per_row,
+                     0, 1, &result)) continue;
+
+    uint32_t coverage = result.count * 100 / result.total;
+    uint8_t left_contrast = rgb_difference(result.color, top_left);
+    uint8_t right_contrast = rgb_difference(result.color, top_right);
+    uint8_t contrast = left_contrast < right_contrast
+                       ? left_contrast : right_contrast;
+    if (coverage < MINIMUM_COVERAGE_PERCENT
+        || contrast < MINIMUM_CONTRAST) continue;
+
+    uint64_t score = (uint64_t)coverage * contrast;
+    if (score > best_score) {
+      best_score = score;
+      best_color = result.color;
+    }
+  }
+  if (!best_score) return false;
+  *accent = best_color;
+  return true;
+}
+
+bool auto_color_sample_corners_rgba(const uint8_t* pixels,
+                                    size_t width,
+                                    size_t height,
+                                    size_t bytes_per_row,
+                                    struct auto_colors* colors) {
   if (!colors || width < 16 || height < 16) return false;
   size_t minimum = width < height ? width : height;
   size_t patch = minimum / 10;
@@ -206,7 +258,7 @@ static bool sample_corners_rgba(const uint8_t* pixels,
   if (patch > 64) patch = 64;
   size_t inset = 3;
   if (2 * (patch + inset) > width || 2 * (patch + inset) > height) return false;
-  return sample_patch(pixels, width, height, bytes_per_row,
+  bool success = sample_patch(pixels, width, height, bytes_per_row,
                       inset, inset, patch, &colors->top_left)
       && sample_patch(pixels, width, height, bytes_per_row,
                       width - inset - patch, inset, patch, &colors->top_right)
@@ -215,6 +267,16 @@ static bool sample_corners_rgba(const uint8_t* pixels,
       && sample_patch(pixels, width, height, bytes_per_row,
                       width - inset - patch, height - inset - patch,
                       patch, &colors->bottom_right);
+  if (!success) return false;
+
+  uint32_t accent;
+  if (sample_top_accent(pixels, width, height, bytes_per_row,
+                        inset + patch, colors->top_left, colors->top_right,
+                        &accent)) {
+    colors->top_left = accent;
+    colors->top_right = accent;
+  }
+  return true;
 }
 
 bool auto_color_sample_window(uint32_t window_id,
@@ -328,7 +390,8 @@ bool auto_color_sample_window_corners(uint32_t window_id,
   bool success = false;
   if (context) {
     CGContextDrawImage(context, CGRectMake(0, 0, width, height), image);
-    success = sample_corners_rgba(pixels, width, height, bytes_per_row, colors);
+    success = auto_color_sample_corners_rgba(pixels, width, height,
+                                             bytes_per_row, colors);
     if (success) {
       uint32_t alpha_mask = (uint32_t)alpha << 24;
       colors->top_left = alpha_mask | colors->top_left;

@@ -26,6 +26,14 @@ bool auto_color_sample_header_rgba(const uint8_t* pixels,
                                    size_t bytes_per_row,
                                    uint32_t* color);
 
+// Samples the four corner regions and may use a long, strongly contrasting
+// horizontal accent near the top for both upper corners.
+bool auto_color_sample_corners_rgba(const uint8_t* pixels,
+                                    size_t width,
+                                    size_t height,
+                                    size_t bytes_per_row,
+                                    struct auto_colors* colors);
+
 bool auto_color_sample_window(uint32_t window_id,
                               uint8_t alpha,
                               uint32_t* color);

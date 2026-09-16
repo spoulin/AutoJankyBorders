@@ -78,6 +78,45 @@ int main(void) {
                                  3, 2, &color));
   assert(!auto_color_sample_rgba(pixels, 4, 4, WIDTH * 4,
                                  3, 2, &color));
+
+  enum { ACCENT_WIDTH = 80, ACCENT_HEIGHT = 40 };
+  uint8_t accent_pixels[ACCENT_WIDTH * ACCENT_HEIGHT * 4];
+  for (size_t y = 0; y < ACCENT_HEIGHT; ++y) {
+    for (size_t x = 0; x < ACCENT_WIDTH; ++x) {
+      set_pixel(accent_pixels, ACCENT_WIDTH, x, y, 20, 24, 28);
+    }
+  }
+  // A Dia-like two-pixel frame spans most of the top and should replace the
+  // dark upper-corner samples without changing the lower corners.
+  for (size_t y = 8; y < 10; ++y) {
+    for (size_t x = 8; x < ACCENT_WIDTH - 8; ++x) {
+      set_pixel(accent_pixels, ACCENT_WIDTH, x, y, 142, 174, 194);
+    }
+  }
+  struct auto_colors colors;
+  assert(auto_color_sample_corners_rgba(accent_pixels,
+                                        ACCENT_WIDTH, ACCENT_HEIGHT,
+                                        ACCENT_WIDTH * 4, &colors));
+  assert(colors.top_left == 0x8eaec2);
+  assert(colors.top_right == 0x8eaec2);
+  assert(colors.bottom_left == 0x14181c);
+  assert(colors.bottom_right == 0x14181c);
+
+  // A short control or decoration must not be mistaken for a window-wide
+  // accent line.
+  for (size_t y = 8; y < 10; ++y) {
+    for (size_t x = 8; x < ACCENT_WIDTH - 8; ++x) {
+      set_pixel(accent_pixels, ACCENT_WIDTH, x, y, 20, 24, 28);
+    }
+    for (size_t x = 20; x < 38; ++x) {
+      set_pixel(accent_pixels, ACCENT_WIDTH, x, y, 142, 174, 194);
+    }
+  }
+  assert(auto_color_sample_corners_rgba(accent_pixels,
+                                        ACCENT_WIDTH, ACCENT_HEIGHT,
+                                        ACCENT_WIDTH * 4, &colors));
+  assert(colors.top_left == 0x14181c);
+  assert(colors.top_right == 0x14181c);
   puts("auto_color_test: ok");
   return 0;
 }
