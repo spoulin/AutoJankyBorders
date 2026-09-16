@@ -110,6 +110,17 @@ uint32_t parse_settings(struct settings* settings, int count, char** arguments) 
         update_mask |= BORDER_UPDATE_MASK_ALL;
       }
     }
+    else if (str_starts_with(arguments[i], "color_refresh=")) {
+      unsigned int refresh_ms;
+      char trailing;
+      if (sscanf(arguments[i], "color_refresh=%u%c", &refresh_ms, &trailing) == 1
+          && (refresh_ms == 0 || refresh_ms >= 250)) {
+        settings->color_refresh_ms = refresh_ms;
+        update_mask |= BORDER_UPDATE_MASK_SETTING;
+      } else {
+        printf("[?] Borders: color_refresh must be 0 or at least 250 ms\n");
+      }
+    }
     else if (str_starts_with(arguments[i], active_color)) {
       if (parse_color(&settings->active_window,
                                  arguments[i] + strlen(active_color))) {

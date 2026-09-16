@@ -41,6 +41,7 @@ struct settings {
   bool invert_auto_color;
   bool auto_gradient;
   uint32_t default_color;
+  uint32_t color_refresh_ms;
 
   float border_width;
   float blur_radius;
@@ -90,6 +91,8 @@ struct border {
   bool sampled_color_valid;
   bool needs_color_sample;
   uint64_t color_refresh_generation;
+  CFAbsoluteTime last_color_refresh;
+  CFAbsoluteTime last_geometry_change;
 
   struct animation animation;
   struct event_buffer event_buffer;

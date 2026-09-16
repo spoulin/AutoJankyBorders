@@ -71,6 +71,14 @@ Sets the fallback used when automatic window capture fails.\& Its alpha
 channel is also applied to colors sampled successfully.\&
 .PP
 .RE
+\fBcolor_refresh=<milliseconds>\fR
+.RS 4
+Periodically resamples the focused window in automatic color modes.\& Use
+\fB0\fR to disable periodic refreshes (the default).\& Values from \fB250\fR ms are
+accepted; \fB1000\fR ms is recommended.\& Refreshes pause while the window is
+being moved or resized.\&
+.PP
+.RE
 \fBbackground_color=<color>\fR
 .RS 4
 Sets the background fill color for all windows (only \fI0xAARRGGBB\fR arguments supported).\&

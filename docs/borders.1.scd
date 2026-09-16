@@ -48,6 +48,12 @@ API, thereby being faster than comparable tools.
 	Sets the fallback used when automatic window capture fails. Its alpha
 	channel is also applied to colors sampled successfully.
 
+*color_refresh=<milliseconds>*
+	Periodically resamples the focused window in automatic color modes. Use
+	*0* to disable periodic refreshes (the default). Values from *250* ms are
+	accepted; *1000* ms is recommended. Refreshes pause while the window is
+	being moved or resized.
+
 *background_color=<color>*
 	Sets the background fill color for all windows (only _0xAARRGGBB_ arguments supported).
 

@@ -266,8 +266,15 @@ to bottom vertically, with continuous transitions at the corners. The related
 
 ```bash
 borders style=square width=5.0 hidpi=on \
-  color=auto-gradient default_color=0xff333333 order=above
+  color=auto-gradient color_refresh=1000 \
+  default_color=0xff333333 order=above
 ```
+
+Set `color_refresh` to periodically resample only the focused window. The
+value is expressed in milliseconds; `1000` is the recommended starting point.
+Use `color_refresh=0` (the default) to disable it. Values below 250 ms are
+rejected to avoid excessive full-window captures. Refreshing pauses briefly
+while a window is being moved or resized.
 
 ##### Example: automatic four-corner gradient
 
@@ -279,6 +286,7 @@ options=(
   width=5.0
   hidpi=on
   color=auto-gradient
+  color_refresh=1000
   default_color=0xff333333
   order=above
 )

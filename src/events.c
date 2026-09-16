@@ -63,9 +63,13 @@ static void window_modify_handler(uint32_t event, uint32_t* window_id, size_t _,
 
   if (event == EVENT_WINDOW_MOVE) {
     debug("Window Move: %d\n", wid);
+    struct border* border = table_find(windows, &wid);
+    if (border) border->last_geometry_change = CFAbsoluteTimeGetCurrent();
     windows_window_move(windows, wid);
   } else if (event == EVENT_WINDOW_RESIZE) {
     debug("Window Resize: %d\n", wid);
+    struct border* border = table_find(windows, &wid);
+    if (border) border->last_geometry_change = CFAbsoluteTimeGetCurrent();
     windows_window_update(windows, wid);
   } else if (event == EVENT_WINDOW_REORDER) {
     debug("Window Reorder (and focus): %d\n", wid);
@@ -109,6 +113,44 @@ static void window_modify_handler(uint32_t event, uint32_t* window_id, size_t _,
     debug("Window Close: %d\n", wid);
     windows_window_destroy(windows, wid, 0);
   }
+}
+
+static void color_refresh_timer_callback(CFRunLoopTimerRef timer, void* info) {
+  CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+  for (int i = 0; i < g_windows.capacity; ++i) {
+    struct bucket* bucket = g_windows.buckets[i];
+    while (bucket) {
+      struct border* border = bucket->value;
+      if (border && border->focused && border_uses_auto_color(border)) {
+        struct settings* settings = border_get_settings(border);
+        double interval = (double)settings->color_refresh_ms / 1000.0;
+        bool geometry_is_settled = now - border->last_geometry_change >= 0.25;
+        if (interval > 0.0
+            && geometry_is_settled
+            && now - border->last_color_refresh >= interval) {
+          border->last_color_refresh = now;
+          border->needs_color_sample = true;
+          border->needs_redraw = true;
+          border_update(border, true);
+        }
+      }
+      bucket = bucket->next;
+    }
+  }
+}
+
+void events_register_color_refresh_timer(void) {
+  CFRunLoopTimerContext context = { 0 };
+  CFRunLoopTimerRef timer = CFRunLoopTimerCreate(NULL,
+                                                 CFAbsoluteTimeGetCurrent() + 0.1,
+                                                 0.1,
+                                                 0,
+                                                 0,
+                                                 color_refresh_timer_callback,
+                                                 &context);
+  if (!timer) return;
+  CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopCommonModes);
+  CFRelease(timer);
 }
 
 static void front_app_handler() {

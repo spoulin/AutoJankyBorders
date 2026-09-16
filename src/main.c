@@ -39,6 +39,7 @@ struct settings g_settings = { .enabled = true,
                                .invert_auto_color = false,
                                .auto_gradient = false,
                                .default_color = 0xffe1e3e4,
+                               .color_refresh_ms = 0,
                                .border_width = 4.f,
                                .blur_radius = 0,
                                .border_style = BORDER_STYLE_ROUND,
@@ -209,6 +210,7 @@ int main(int argc, char** argv) {
 
   int cid = SLSMainConnectionID();
   events_register(cid);
+  events_register_color_refresh_timer();
 
   mach_port_t port;
   CGError err = SLSGetEventPort(cid, &port);
