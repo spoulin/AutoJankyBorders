@@ -79,6 +79,20 @@ accepted; \fB1000\fR ms is recommended.\& Refreshes pause while the window is
 being moved or resized.\&
 .PP
 .RE
+\fBcolor_transition=<milliseconds>\fR
+.RS 4
+Smoothly morphs the displayed automatic color to each newly sampled color.\&
+Use \fB0\fR for immediate changes (the default).\& A value around \fB300\fR ms is
+recommended.\& The transition does not perform additional window captures.\&
+.PP
+.RE
+\fBcolor_threshold=<0-255>\fR
+.RS 4
+Ignores automatic color changes whose largest RGB channel difference is no
+greater than this value.\& The default is \fB6\fR, which prevents subtle capture
+noise from continuously animating the border.\&
+.PP
+.RE
 \fBbackground_color=<color>\fR
 .RS 4
 Sets the background fill color for all windows (only \fI0xAARRGGBB\fR arguments supported).\&

@@ -7,6 +7,125 @@
 #include <time.h>
 
 extern struct settings g_settings;
+extern struct table g_windows;
+
+static uint8_t color_channel(uint32_t color, int shift) {
+  return (color >> shift) & 0xff;
+}
+
+static uint8_t interpolate_channel(uint8_t from, uint8_t to, double progress) {
+  return (uint8_t)((double)from + ((double)to - (double)from) * progress + 0.5);
+}
+
+static uint32_t interpolate_color(uint32_t from, uint32_t to, double progress) {
+  return ((uint32_t)interpolate_channel(color_channel(from, 24), color_channel(to, 24), progress) << 24)
+       | ((uint32_t)interpolate_channel(color_channel(from, 16), color_channel(to, 16), progress) << 16)
+       | ((uint32_t)interpolate_channel(color_channel(from, 8), color_channel(to, 8), progress) << 8)
+       |  (uint32_t)interpolate_channel(color_channel(from, 0), color_channel(to, 0), progress);
+}
+
+static uint8_t color_difference(uint32_t first, uint32_t second) {
+  uint8_t maximum = 0;
+  for (int shift = 0; shift <= 16; shift += 8) {
+    int difference = abs((int)color_channel(first, shift)
+                         - (int)color_channel(second, shift));
+    if (difference > maximum) maximum = difference;
+  }
+  return maximum;
+}
+
+static uint8_t gradient_difference(struct auto_colors first,
+                                   struct auto_colors second) {
+  uint8_t maximum = color_difference(first.top_left, second.top_left);
+  uint8_t difference = color_difference(first.top_right, second.top_right);
+  if (difference > maximum) maximum = difference;
+  difference = color_difference(first.bottom_left, second.bottom_left);
+  if (difference > maximum) maximum = difference;
+  difference = color_difference(first.bottom_right, second.bottom_right);
+  if (difference > maximum) maximum = difference;
+  return maximum;
+}
+
+static struct auto_colors interpolate_colors(struct auto_colors from,
+                                             struct auto_colors to,
+                                             double progress) {
+  return (struct auto_colors) {
+    .top_left = interpolate_color(from.top_left, to.top_left, progress),
+    .top_right = interpolate_color(from.top_right, to.top_right, progress),
+    .bottom_left = interpolate_color(from.bottom_left, to.bottom_left, progress),
+    .bottom_right = interpolate_color(from.bottom_right, to.bottom_right, progress)
+  };
+}
+
+static void border_schedule_color_transition(uint32_t wid,
+                                             uint64_t generation) {
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 16 * NSEC_PER_MSEC),
+                 dispatch_get_main_queue(), ^{
+    uint32_t lookup_wid = wid;
+    struct border* border = table_find(&g_windows, &lookup_wid);
+    if (!border || border->color_transition_generation != generation) return;
+
+    double elapsed = CFAbsoluteTimeGetCurrent() - border->color_transition_started;
+    double progress = elapsed / border->color_transition_duration;
+    if (progress > 1.0) progress = 1.0;
+    // Smoothstep avoids a visible jolt at the beginning and end of the morph.
+    double eased_progress = progress * progress * (3.0 - 2.0 * progress);
+    struct settings* settings = border_get_settings(border);
+    if (settings->auto_gradient) {
+      border->sampled_colors = interpolate_colors(border->transition_start_colors,
+                                                   border->transition_target_colors,
+                                                   eased_progress);
+    } else {
+      border->sampled_color = interpolate_color(border->transition_start_color,
+                                                border->transition_target_color,
+                                                eased_progress);
+    }
+    border->needs_redraw = true;
+    border_update(border, false);
+
+    if (progress < 1.0) {
+      border_schedule_color_transition(wid, generation);
+    }
+  });
+}
+
+static void border_transition_to_color(struct border* border,
+                                       struct settings* settings,
+                                       uint32_t color) {
+  if (!border->sampled_color_valid || settings->color_transition_ms == 0) {
+    ++border->color_transition_generation;
+    border->sampled_color = color;
+    return;
+  }
+  if (color_difference(border->sampled_color, color)
+      <= settings->color_threshold) return;
+
+  border->transition_start_color = border->sampled_color;
+  border->transition_target_color = color;
+  border->color_transition_started = CFAbsoluteTimeGetCurrent();
+  border->color_transition_duration = settings->color_transition_ms / 1000.0;
+  uint64_t generation = ++border->color_transition_generation;
+  border_schedule_color_transition(border->target_wid, generation);
+}
+
+static void border_transition_to_colors(struct border* border,
+                                        struct settings* settings,
+                                        struct auto_colors colors) {
+  if (!border->sampled_color_valid || settings->color_transition_ms == 0) {
+    ++border->color_transition_generation;
+    border->sampled_colors = colors;
+    return;
+  }
+  if (gradient_difference(border->sampled_colors, colors)
+      <= settings->color_threshold) return;
+
+  border->transition_start_colors = border->sampled_colors;
+  border->transition_target_colors = colors;
+  border->color_transition_started = CFAbsoluteTimeGetCurrent();
+  border->color_transition_duration = settings->color_transition_ms / 1000.0;
+  uint64_t generation = ++border->color_transition_generation;
+  border_schedule_color_transition(border->target_wid, generation);
+}
 
 struct settings* border_get_settings(struct border* border) {
   assert(pthread_main_np() != 0);
@@ -72,21 +191,23 @@ static void border_draw(struct border* border, CGRect frame, struct settings* se
       uint8_t alpha = settings->default_color >> 24;
       bool captured;
       if (settings->auto_gradient) {
+        struct auto_colors sampled_colors;
         captured = auto_color_sample_window_corners(border->target_wid,
                                                      alpha,
-                                                     &border->sampled_colors);
+                                                     &sampled_colors);
         if (captured && settings->invert_auto_color) {
-          border->sampled_colors.top_left = auto_color_invert(border->sampled_colors.top_left);
-          border->sampled_colors.top_right = auto_color_invert(border->sampled_colors.top_right);
-          border->sampled_colors.bottom_left = auto_color_invert(border->sampled_colors.bottom_left);
-          border->sampled_colors.bottom_right = auto_color_invert(border->sampled_colors.bottom_right);
+          sampled_colors.top_left = auto_color_invert(sampled_colors.top_left);
+          sampled_colors.top_right = auto_color_invert(sampled_colors.top_right);
+          sampled_colors.bottom_left = auto_color_invert(sampled_colors.bottom_left);
+          sampled_colors.bottom_right = auto_color_invert(sampled_colors.bottom_right);
         }
         if (!captured) {
-          border->sampled_colors = (struct auto_colors) {
+          sampled_colors = (struct auto_colors) {
             settings->default_color, settings->default_color,
             settings->default_color, settings->default_color
           };
         }
+        border_transition_to_colors(border, settings, sampled_colors);
       } else {
         captured = auto_color_sample_window(border->target_wid,
                                             alpha,
@@ -94,7 +215,9 @@ static void border_draw(struct border* border, CGRect frame, struct settings* se
         if (captured && settings->invert_auto_color) {
           sampled_color = auto_color_invert(sampled_color);
         }
-        border->sampled_color = captured ? sampled_color : settings->default_color;
+        border_transition_to_color(border, settings,
+                                   captured ? sampled_color
+                                            : settings->default_color);
       }
       // Cache the fallback too: a denied capture must not be retried for every
       // geometry update while a window is being resized.

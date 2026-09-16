@@ -42,6 +42,8 @@ struct settings {
   bool auto_gradient;
   uint32_t default_color;
   uint32_t color_refresh_ms;
+  uint32_t color_transition_ms;
+  uint8_t color_threshold;
 
   float border_width;
   float blur_radius;
@@ -93,6 +95,13 @@ struct border {
   uint64_t color_refresh_generation;
   CFAbsoluteTime last_color_refresh;
   CFAbsoluteTime last_geometry_change;
+  uint32_t transition_start_color;
+  uint32_t transition_target_color;
+  struct auto_colors transition_start_colors;
+  struct auto_colors transition_target_colors;
+  CFAbsoluteTime color_transition_started;
+  double color_transition_duration;
+  uint64_t color_transition_generation;
 
   struct animation animation;
   struct event_buffer event_buffer;

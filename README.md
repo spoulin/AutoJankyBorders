@@ -267,6 +267,7 @@ to bottom vertically, with continuous transitions at the corners. The related
 ```bash
 borders style=square width=5.0 hidpi=on \
   color=auto-gradient color_refresh=1000 \
+  color_transition=300 color_threshold=6 \
   default_color=0xff333333 order=above
 ```
 
@@ -275,6 +276,19 @@ value is expressed in milliseconds; `1000` is the recommended starting point.
 Use `color_refresh=0` (the default) to disable it. Values below 250 ms are
 rejected to avoid excessive full-window captures. Refreshing pauses briefly
 while a window is being moved or resized.
+
+Set `color_transition` to morph smoothly from the displayed color to a newly
+sampled color without taking additional screenshots during the animation.
+`color_threshold` ignores small per-channel differences caused by capture
+noise. A responsive starting point is:
+
+```bash
+color_refresh=1000
+color_transition=300
+color_threshold=6
+```
+
+Use `color_transition=0` to keep immediate color changes.
 
 ##### Example: automatic four-corner gradient
 
@@ -287,6 +301,8 @@ options=(
   hidpi=on
   color=auto-gradient
   color_refresh=1000
+  color_transition=300
+  color_threshold=6
   default_color=0xff333333
   order=above
 )

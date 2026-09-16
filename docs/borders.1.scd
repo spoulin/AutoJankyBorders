@@ -54,6 +54,16 @@ API, thereby being faster than comparable tools.
 	accepted; *1000* ms is recommended. Refreshes pause while the window is
 	being moved or resized.
 
+*color_transition=<milliseconds>*
+	Smoothly morphs the displayed automatic color to each newly sampled color.
+	Use *0* for immediate changes (the default). A value around *300* ms is
+	recommended. The transition does not perform additional window captures.
+
+*color_threshold=<0-255>*
+	Ignores automatic color changes whose largest RGB channel difference is no
+	greater than this value. The default is *6*, which prevents subtle capture
+	noise from continuously animating the border.
+
 *background_color=<color>*
 	Sets the background fill color for all windows (only _0xAARRGGBB_ arguments supported).
 

@@ -121,6 +121,30 @@ uint32_t parse_settings(struct settings* settings, int count, char** arguments) 
         printf("[?] Borders: color_refresh must be 0 or at least 250 ms\n");
       }
     }
+    else if (str_starts_with(arguments[i], "color_transition=")) {
+      unsigned int transition_ms;
+      char trailing;
+      if (sscanf(arguments[i], "color_transition=%u%c",
+                 &transition_ms, &trailing) == 1
+          && (transition_ms == 0 || transition_ms >= 16)) {
+        settings->color_transition_ms = transition_ms;
+        update_mask |= BORDER_UPDATE_MASK_SETTING;
+      } else {
+        printf("[?] Borders: color_transition must be 0 or at least 16 ms\n");
+      }
+    }
+    else if (str_starts_with(arguments[i], "color_threshold=")) {
+      unsigned int threshold;
+      char trailing;
+      if (sscanf(arguments[i], "color_threshold=%u%c",
+                 &threshold, &trailing) == 1
+          && threshold <= 255) {
+        settings->color_threshold = threshold;
+        update_mask |= BORDER_UPDATE_MASK_SETTING;
+      } else {
+        printf("[?] Borders: color_threshold must be between 0 and 255\n");
+      }
+    }
     else if (str_starts_with(arguments[i], active_color)) {
       if (parse_color(&settings->active_window,
                                  arguments[i] + strlen(active_color))) {
