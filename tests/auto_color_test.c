@@ -35,6 +35,26 @@ int main(void) {
   assert(auto_color_invert(0xff000000) == 0xffffffff);
   assert(auto_color_invert(0x7fffffff) == 0x7f000000);
   assert(auto_color_invert(0xff123456) == 0xffedcba9);
+
+  struct auto_colors gradient_colors = {
+    .top_left = 0xff000000,
+    .top_right = 0xffff0000,
+    .bottom_left = 0xff00ff00,
+    .bottom_right = 0xff0000ff
+  };
+  CGImageRef gradient = auto_color_create_bilinear_gradient(gradient_colors);
+  assert(gradient);
+  CFDataRef gradient_data = CGDataProviderCopyData(CGImageGetDataProvider(gradient));
+  const uint8_t* gradient_pixels = CFDataGetBytePtr(gradient_data);
+  size_t gradient_row = CGImageGetBytesPerRow(gradient);
+  assert(gradient_pixels[0] == 0 && gradient_pixels[1] == 0
+         && gradient_pixels[2] == 0 && gradient_pixels[3] == 255);
+  const uint8_t* top_right = gradient_pixels + (63 * 4);
+  assert(top_right[0] == 255 && top_right[1] == 0 && top_right[2] == 0);
+  const uint8_t* bottom_left = gradient_pixels + (63 * gradient_row);
+  assert(bottom_left[0] == 0 && bottom_left[1] == 255 && bottom_left[2] == 0);
+  CFRelease(gradient_data);
+  CGImageRelease(gradient);
   assert(auto_color_sample_rgba(pixels, WIDTH, HEIGHT, WIDTH * 4,
                                 3, 2, &color));
   assert(color == 0x2040e0);

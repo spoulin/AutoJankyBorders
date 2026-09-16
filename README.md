@@ -31,6 +31,8 @@ without requiring every application to follow the same design language.
 
 - `color=auto` selects a dominant color from each window's header.
 - `color=inverse` uses the inverse of the detected header color.
+- `color=auto-gradient` blends colors sampled near all four window corners.
+- `color=inverse-gradient` applies the same four-corner blend after inversion.
 - Colors are cached per window so resizing remains responsive.
 - `default_color=0xAARRGGBB` provides a configurable capture fallback.
 - Existing per-window settings through `apply-to=<window-id>` are preserved.
@@ -82,15 +84,17 @@ window capture is unavailable, `default_color` is used.
 #### Why Screen Recording permission is required
 
 macOS protects APIs that capture the contents of other applications' windows.
-AutoJankyBorders needs this permission only for `color=auto` and
-`color=inverse`: CoreGraphics temporarily provides an image of each target
-window in memory, and the fork examines a thin horizontal band in its header
-to determine the dominant color.
+AutoJankyBorders needs this permission for `color=auto`, `color=inverse`,
+`color=auto-gradient`, and `color=inverse-gradient`. CoreGraphics temporarily
+provides an image of each target window in memory. The solid modes examine a
+thin horizontal band in its header; the gradient modes examine small regions
+near all four corners.
 
 AutoJankyBorders does not save screenshots, write captured pixels to disk, or
 send them over the network. The temporary image and pixel buffer are released
 immediately after the color is calculated. Only the resulting RGB color is
-cached for that window. Static modes such as `active_color` and
+cached for that window. Gradient mode caches four RGB colors per window.
+Static modes such as `active_color` and
 `inactive_color` do not need screen capture.
 
 If permission is denied or later revoked, borders continue to work using
@@ -150,7 +154,7 @@ options=(
   style=square
   width=5.0
   hidpi=on
-  color=auto
+  color=auto-gradient
   default_color=0xff333333
   order=above
 )
@@ -163,7 +167,7 @@ the foreground so macOS can request Screen Recording permission:
 
 ```bash
 chmod +x ~/.config/borders/bordersrc
-$(brew --prefix autojankyborders)/bin/borders color=auto
+$(brew --prefix autojankyborders)/bin/borders color=auto-gradient
 ```
 
 After granting permission, stop the foreground process and start the service:
@@ -254,6 +258,36 @@ switches automatic color back off.
 Use `color=inverse` to sample the same per-window header color and invert its
 RGB components. For example, black becomes white while the configured alpha
 is preserved. `default_color` remains unchanged when capture fails.
+
+Use `color=auto-gradient` to sample four independent colors near the window
+corners. The border uses a bilinear blend: left to right horizontally and top
+to bottom vertically, with continuous transitions at the corners. The related
+`color=inverse-gradient` mode inverts all four sampled colors before blending.
+
+```bash
+borders style=square width=5.0 hidpi=on \
+  color=auto-gradient default_color=0xff333333 order=above
+```
+
+##### Example: automatic four-corner gradient
+
+```bash
+#!/bin/bash
+
+options=(
+  style=square
+  width=5.0
+  hidpi=on
+  color=auto-gradient
+  default_color=0xff333333
+  order=above
+)
+
+borders "${options[@]}"
+```
+
+Each corner keeps its own sampled color. If capture fails, all four corners
+use `default_color`, producing a solid fallback rather than a partial gradient.
 
 ##### Example: automatic header color
 

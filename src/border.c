@@ -70,20 +70,41 @@ static void border_draw(struct border* border, CGRect frame, struct settings* se
     if (!border->sampled_color_valid || border->needs_color_sample) {
       uint32_t sampled_color = 0;
       uint8_t alpha = settings->default_color >> 24;
-      bool captured = auto_color_sample_window(border->target_wid,
-                                                alpha,
-                                                &sampled_color);
-      if (captured && settings->invert_auto_color) {
-        sampled_color = auto_color_invert(sampled_color);
+      bool captured;
+      if (settings->auto_gradient) {
+        captured = auto_color_sample_window_corners(border->target_wid,
+                                                     alpha,
+                                                     &border->sampled_colors);
+        if (captured && settings->invert_auto_color) {
+          border->sampled_colors.top_left = auto_color_invert(border->sampled_colors.top_left);
+          border->sampled_colors.top_right = auto_color_invert(border->sampled_colors.top_right);
+          border->sampled_colors.bottom_left = auto_color_invert(border->sampled_colors.bottom_left);
+          border->sampled_colors.bottom_right = auto_color_invert(border->sampled_colors.bottom_right);
+        }
+        if (!captured) {
+          border->sampled_colors = (struct auto_colors) {
+            settings->default_color, settings->default_color,
+            settings->default_color, settings->default_color
+          };
+        }
+      } else {
+        captured = auto_color_sample_window(border->target_wid,
+                                            alpha,
+                                            &sampled_color);
+        if (captured && settings->invert_auto_color) {
+          sampled_color = auto_color_invert(sampled_color);
+        }
+        border->sampled_color = captured ? sampled_color : settings->default_color;
       }
-      border->sampled_color = captured ? sampled_color : settings->default_color;
       // Cache the fallback too: a denied capture must not be retried for every
       // geometry update while a window is being resized.
       border->sampled_color_valid = true;
       border->needs_color_sample = false;
     }
-    color_style.stype = COLOR_STYLE_SOLID;
-    color_style.color = border->sampled_color;
+    if (!settings->auto_gradient) {
+      color_style.stype = COLOR_STYLE_SOLID;
+      color_style.color = border->sampled_color;
+    }
   }
 
   CGGradientRef gradient = NULL;
@@ -124,7 +145,27 @@ static void border_draw(struct border* border, CGRect frame, struct settings* se
   }
   drawing_clip_between_rect_and_path(border->context, frame, inner_clip_path);
 
-  if (settings->border_style == BORDER_STYLE_SQUARE) {
+  if (settings->auto_color && settings->auto_gradient) {
+    CGImageRef image = auto_color_create_bilinear_gradient(border->sampled_colors);
+    if (image) {
+      CGContextSaveGState(border->context);
+      if (settings->border_style == BORDER_STYLE_SQUARE) {
+        drawing_add_rect_with_inset(border->context,
+                                    path_rect,
+                                    -settings->border_width / 2.f);
+        CGContextClip(border->context);
+      } else {
+        float corner_radius = settings->border_style == BORDER_STYLE_ROUND_UNIFORM
+                              ? 9.0 : border->radius;
+        drawing_add_rounded_rect(border->context, path_rect, corner_radius);
+        CGContextReplacePathWithStrokedPath(border->context);
+        CGContextClip(border->context);
+      }
+      CGContextDrawImage(border->context, frame, image);
+      CGContextRestoreGState(border->context);
+      CGImageRelease(image);
+    }
+  } else if (settings->border_style == BORDER_STYLE_SQUARE) {
     if (color_style.stype == COLOR_STYLE_SOLID
        || color_style.stype == COLOR_STYLE_GLOW) {
       drawing_draw_square_with_inset(border->context,

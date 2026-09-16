@@ -5,6 +5,7 @@
 #include "misc/drawing.h"
 #include "animation.h"
 #include "hashtable.h"
+#include "auto_color.h"
 
 #define BORDER_ORDER_ABOVE 1
 #define BORDER_ORDER_BELOW -1
@@ -38,6 +39,7 @@ struct settings {
   struct color_style background;
   bool auto_color;
   bool invert_auto_color;
+  bool auto_gradient;
   uint32_t default_color;
 
   float border_width;
@@ -84,6 +86,7 @@ struct border {
   CGContextRef context;
 
   uint32_t sampled_color;
+  struct auto_colors sampled_colors;
   bool sampled_color_valid;
   bool needs_color_sample;
   uint64_t color_refresh_generation;

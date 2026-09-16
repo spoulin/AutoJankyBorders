@@ -69,13 +69,27 @@ uint32_t parse_settings(struct settings* settings, int count, char** arguments) 
   char order = 'a';
   uint32_t update_mask = 0;
   for (int i = 0; i < count; i++) {
-    if (strcmp(arguments[i], "color=auto") == 0) {
+    if (strcmp(arguments[i], "color=auto-gradient") == 0) {
       settings->auto_color = true;
+      settings->auto_gradient = true;
+      settings->invert_auto_color = false;
+      update_mask |= BORDER_UPDATE_MASK_ALL;
+    }
+    else if (strcmp(arguments[i], "color=inverse-gradient") == 0) {
+      settings->auto_color = true;
+      settings->auto_gradient = true;
+      settings->invert_auto_color = true;
+      update_mask |= BORDER_UPDATE_MASK_ALL;
+    }
+    else if (strcmp(arguments[i], "color=auto") == 0) {
+      settings->auto_color = true;
+      settings->auto_gradient = false;
       settings->invert_auto_color = false;
       update_mask |= BORDER_UPDATE_MASK_ALL;
     }
     else if (strcmp(arguments[i], "color=inverse") == 0) {
       settings->auto_color = true;
+      settings->auto_gradient = false;
       settings->invert_auto_color = true;
       update_mask |= BORDER_UPDATE_MASK_ALL;
     }
@@ -83,6 +97,7 @@ uint32_t parse_settings(struct settings* settings, int count, char** arguments) 
       if (parse_color(&settings->active_window, arguments[i] + strlen("color"))) {
         settings->inactive_window = settings->active_window;
         settings->auto_color = false;
+        settings->auto_gradient = false;
         settings->invert_auto_color = false;
         update_mask |= BORDER_UPDATE_MASK_ALL;
       }
@@ -99,6 +114,7 @@ uint32_t parse_settings(struct settings* settings, int count, char** arguments) 
       if (parse_color(&settings->active_window,
                                  arguments[i] + strlen(active_color))) {
         settings->auto_color = false;
+        settings->auto_gradient = false;
         settings->invert_auto_color = false;
         update_mask |= BORDER_UPDATE_MASK_ACTIVE;
       }
@@ -107,6 +123,7 @@ uint32_t parse_settings(struct settings* settings, int count, char** arguments) 
       if (parse_color(&settings->inactive_window,
                                  arguments[i] + strlen(inactive_color))) {
         settings->auto_color = false;
+        settings->auto_gradient = false;
         settings->invert_auto_color = false;
         update_mask |= BORDER_UPDATE_MASK_INACTIVE;
       }

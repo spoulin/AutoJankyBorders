@@ -53,6 +53,18 @@ Samples the window header like \fBcolor=auto\fR and inverts the resulting RGB
 components while preserving alpha.\& Black becomes white and vice versa.\&
 .PP
 .RE
+\fBcolor=auto-gradient\fR
+.RS 4
+Samples colors near all four window corners and draws a bilinear blend
+across the border, horizontally and vertically.\&
+.PP
+.RE
+\fBcolor=inverse-gradient\fR
+.RS 4
+Uses the same four-corner blend as \fBcolor=auto-gradient\fR after inverting
+each sampled RGB color.\&
+.PP
+.RE
 \fBdefault_color=0xAARRGGBB\fR
 .RS 4
 Sets the fallback used when automatic window capture fails.\& Its alpha

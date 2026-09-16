@@ -36,6 +36,14 @@ API, thereby being faster than comparable tools.
 	Samples the window header like *color=auto* and inverts the resulting RGB
 	components while preserving alpha. Black becomes white and vice versa.
 
+*color=auto-gradient*
+	Samples colors near all four window corners and draws a bilinear blend
+	across the border, horizontally and vertically.
+
+*color=inverse-gradient*
+	Uses the same four-corner blend as *color=auto-gradient* after inverting
+	each sampled RGB color.
+
 *default_color=0xAARRGGBB*
 	Sets the fallback used when automatic window capture fails. Its alpha
 	channel is also applied to colors sampled successfully.

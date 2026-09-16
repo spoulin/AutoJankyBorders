@@ -161,6 +161,62 @@ bool auto_color_sample_header_rgba(const uint8_t* pixels,
   return true;
 }
 
+static bool sample_patch(const uint8_t* pixels,
+                         size_t width,
+                         size_t height,
+                         size_t bytes_per_row,
+                         size_t x_origin,
+                         size_t y_origin,
+                         size_t patch_size,
+                         uint32_t* color) {
+  uint32_t histogram[HISTOGRAM_SIZE] = {0};
+  uint64_t red[HISTOGRAM_SIZE] = {0};
+  uint64_t green[HISTOGRAM_SIZE] = {0};
+  uint64_t blue[HISTOGRAM_SIZE] = {0};
+  if (!pixels || !color || patch_size == 0
+      || x_origin + patch_size > width
+      || y_origin + patch_size > height) return false;
+  for (size_t y = y_origin; y < y_origin + patch_size; ++y) {
+    for (size_t x = x_origin; x < x_origin + patch_size; ++x) {
+      sample_pixel(pixels + y * bytes_per_row + x * 4,
+                   histogram, red, green, blue);
+    }
+  }
+  uint32_t best = 0;
+  for (uint32_t i = 1; i < HISTOGRAM_SIZE; ++i) {
+    if (histogram[i] > histogram[best]) best = i;
+  }
+  if (!histogram[best]) return false;
+  uint32_t count = histogram[best];
+  *color = ((uint32_t)(red[best] / count) << 16)
+         | ((uint32_t)(green[best] / count) << 8)
+         |  (uint32_t)(blue[best] / count);
+  return true;
+}
+
+static bool sample_corners_rgba(const uint8_t* pixels,
+                                size_t width,
+                                size_t height,
+                                size_t bytes_per_row,
+                                struct auto_colors* colors) {
+  if (!colors || width < 16 || height < 16) return false;
+  size_t minimum = width < height ? width : height;
+  size_t patch = minimum / 10;
+  if (patch < 8) patch = 8;
+  if (patch > 64) patch = 64;
+  size_t inset = 3;
+  if (2 * (patch + inset) > width || 2 * (patch + inset) > height) return false;
+  return sample_patch(pixels, width, height, bytes_per_row,
+                      inset, inset, patch, &colors->top_left)
+      && sample_patch(pixels, width, height, bytes_per_row,
+                      width - inset - patch, inset, patch, &colors->top_right)
+      && sample_patch(pixels, width, height, bytes_per_row,
+                      inset, height - inset - patch, patch, &colors->bottom_left)
+      && sample_patch(pixels, width, height, bytes_per_row,
+                      width - inset - patch, height - inset - patch,
+                      patch, &colors->bottom_right);
+}
+
 bool auto_color_sample_window(uint32_t window_id,
                               uint8_t alpha,
                               uint32_t* color) {
@@ -234,4 +290,95 @@ bool auto_color_sample_window(uint32_t window_id,
   free(pixels);
   CGImageRelease(image);
   return success;
+}
+
+bool auto_color_sample_window_corners(uint32_t window_id,
+                                      uint8_t alpha,
+                                      struct auto_colors* colors) {
+  if (!colors || !CGPreflightScreenCaptureAccess()) return false;
+  typedef CGImageRef (*window_list_create_image_fn)(CGRect,
+                                                     CGWindowListOption,
+                                                     CGWindowID,
+                                                     CGWindowImageOption);
+  static window_list_create_image_fn create_image = NULL;
+  static bool did_resolve = false;
+  if (!did_resolve) {
+    create_image = (window_list_create_image_fn)dlsym(RTLD_DEFAULT,
+                                                       "CGWindowListCreateImage");
+    did_resolve = true;
+  }
+  if (!create_image) return false;
+  CGImageRef image = create_image(CGRectNull,
+                                  kCGWindowListOptionIncludingWindow,
+                                  window_id,
+                                  kCGWindowImageBoundsIgnoreFraming
+                                  | kCGWindowImageBestResolution);
+  if (!image) return false;
+  size_t width = CGImageGetWidth(image);
+  size_t height = CGImageGetHeight(image);
+  size_t bytes_per_row = width * 4;
+  uint8_t* pixels = calloc(height, bytes_per_row);
+  CGColorSpaceRef color_space = CGColorSpaceCreateDeviceRGB();
+  CGContextRef context = pixels && color_space
+                         ? CGBitmapContextCreate(pixels, width, height, 8,
+                                                bytes_per_row, color_space,
+                                                kCGImageAlphaPremultipliedLast
+                                                | kCGBitmapByteOrder32Big)
+                         : NULL;
+  bool success = false;
+  if (context) {
+    CGContextDrawImage(context, CGRectMake(0, 0, width, height), image);
+    success = sample_corners_rgba(pixels, width, height, bytes_per_row, colors);
+    if (success) {
+      uint32_t alpha_mask = (uint32_t)alpha << 24;
+      colors->top_left = alpha_mask | colors->top_left;
+      colors->top_right = alpha_mask | colors->top_right;
+      colors->bottom_left = alpha_mask | colors->bottom_left;
+      colors->bottom_right = alpha_mask | colors->bottom_right;
+    }
+  }
+  if (context) CGContextRelease(context);
+  if (color_space) CGColorSpaceRelease(color_space);
+  free(pixels);
+  CGImageRelease(image);
+  return success;
+}
+
+static uint8_t channel(uint32_t color, int shift) {
+  return (color >> shift) & 0xff;
+}
+
+CGImageRef auto_color_create_bilinear_gradient(struct auto_colors colors) {
+  enum { SIZE = 64 };
+  uint8_t* pixels = malloc(SIZE * SIZE * 4);
+  if (!pixels) return NULL;
+  for (int y = 0; y < SIZE; ++y) {
+    float fy = (float)y / (SIZE - 1);
+    for (int x = 0; x < SIZE; ++x) {
+      float fx = (float)x / (SIZE - 1);
+      uint32_t corners[] = { colors.top_left, colors.top_right,
+                             colors.bottom_left, colors.bottom_right };
+      float weights[] = { (1.f - fx) * (1.f - fy), fx * (1.f - fy),
+                          (1.f - fx) * fy, fx * fy };
+      uint8_t* pixel = pixels + (y * SIZE + x) * 4;
+      for (int component = 0; component < 4; ++component) {
+        int shift = component == 0 ? 16 : component == 1 ? 8 : component == 2 ? 0 : 24;
+        float value = 0.f;
+        for (int corner = 0; corner < 4; ++corner) {
+          value += channel(corners[corner], shift) * weights[corner];
+        }
+        pixel[component] = (uint8_t)(value + 0.5f);
+      }
+    }
+  }
+  CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+  CGContextRef context = CGBitmapContextCreate(pixels, SIZE, SIZE, 8,
+                                                SIZE * 4, space,
+                                                kCGImageAlphaPremultipliedLast
+                                                | kCGBitmapByteOrder32Big);
+  CGImageRef image = context ? CGBitmapContextCreateImage(context) : NULL;
+  if (context) CGContextRelease(context);
+  if (space) CGColorSpaceRelease(space);
+  free(pixels);
+  return image;
 }

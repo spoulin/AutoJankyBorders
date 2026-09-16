@@ -12,7 +12,7 @@ asan: | bin
 	./bin/debug
 
 test: | bin
-	clang -std=c99 -O0 -g tests/auto_color_test.c src/auto_color.c -o bin/auto_color_test -framework CoreGraphics
+	clang -std=c99 -O0 -g tests/auto_color_test.c src/auto_color.c -o bin/auto_color_test -framework CoreGraphics -framework CoreFoundation
 	./bin/auto_color_test
 
 bin:
