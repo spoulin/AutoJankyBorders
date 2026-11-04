@@ -36,6 +36,7 @@ without requiring every application to follow the same design language.
 - Colors are cached per window so resizing remains responsive.
 - `default_color=0xAARRGGBB` provides a configurable capture fallback.
 - Existing per-window settings through `apply-to=<window-id>` are preserved.
+- `bordersbar` is an optional menu bar app to control the running daemon.
 
 ### Before and after
 
@@ -213,6 +214,46 @@ versioned releases. Ask Homebrew to fetch HEAD when checking for newer commits:
 brew services stop autojankyborders
 brew upgrade --fetch-HEAD autojankyborders
 brew services start autojankyborders
+```
+
+### Menu bar app
+
+`bordersbar` is a small separate app that puts an icon in the menu bar. It can
+start, stop, and restart `borders`, change the color mode, style, width, and
+color refresh, and open `bordersrc` in a text editor. It does not need Screen
+Recording permission, and `borders` keeps running without it.
+
+```bash
+make menubar
+./bin/bordersbar
+```
+
+The Homebrew formula installs it as `bordersbar`. Run it once, then enable
+**Launch at Login** in its menu to start it automatically. This setting adds
+`~/Library/LaunchAgents/com.github.spoulin.bordersbar.plist`. **Quit Menu** closes
+only the menu app.
+
+If the Homebrew service is installed, **Stop** unloads the service with
+`launchctl` until you start it again from the menu or log in again. A plain
+`kill` would not work because the service is kept alive. Without the service, the
+app starts the `borders` binary next to its own executable and stops any process
+named `borders`.
+
+Choices made in the menu are saved in `~/.config/borders/menu-options`, one
+argument per line. The app sends them each time the daemon starts, so they
+override `bordersrc`. **Reset to bordersrc** removes them and restarts the daemon.
+The daemon cannot report its settings, so options you have not chosen in the menu
+are shown as read from `bordersrc`. A value that was changed from the command line
+does not appear in the menu.
+
+To also apply the saved choices when the menu app is not running, add these lines
+to `bordersrc` before the line that runs `borders`:
+
+```bash
+menu_options="$HOME/.config/borders/menu-options"
+if [ -f "$menu_options" ]; then
+  while IFS= read -r option; do options+=("$option"); done < "$menu_options"
+fi
 ```
 
 ### Configuring the appearance

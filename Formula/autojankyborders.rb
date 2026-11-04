@@ -9,7 +9,9 @@ class Autojankyborders < Formula
 
   def install
     system "make"
+    system "make", "menubar"
     bin.install "bin/borders"
+    bin.install "bin/bordersbar"
     man1.install "docs/borders.1"
   end
 
