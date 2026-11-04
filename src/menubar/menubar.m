@@ -32,6 +32,12 @@ static NSString* home_path(NSString* relative_path) {
   return [root stringByAppendingPathComponent:relative_path];
 }
 
+// True when running from AutoJankyBorders.app, which owns the daemon's lifetime.
+// The bare `bordersbar` executable only controls a daemon that runs on its own.
+static bool app_bundled(void) {
+  return NSBundle.mainBundle.bundleIdentifier != nil;
+}
+
 static NSString* executable_path(void) {
   char path[PATH_MAX];
   uint32_t size = sizeof(path);
@@ -127,8 +133,10 @@ static bool service_loaded(const char* label) {
 }
 
 // Without a disclaim, macOS attributes the daemon's Screen Recording use to this
-// app instead of to the `borders` binary that the user granted permission to.
+// process. That is wanted for the app bundle, where permission belongs to the
+// app, but not for the bare executable, where it belongs to the `borders` binary.
 static void disclaim_responsibility(posix_spawnattr_t* attributes) {
+  if (app_bundled()) return;
   int (*set_disclaim)(posix_spawnattr_t*, int)
     = dlsym(RTLD_DEFAULT, "responsibility_spawnattrs_setdisclaim");
   if (set_disclaim) set_disclaim(attributes, 1);
@@ -190,16 +198,18 @@ static void terminate_standalone_daemons(void) {
 
 static bool daemon_start(void) {
   const char* label = service_label();
-  if (!label) return spawn_daemon();
-  if (service_loaded(label)) {
+  if (label && service_loaded(label)) {
     launchctl("kickstart", NULL, service_target(label));
-  } else {
-    NSString* plist = [NSString stringWithFormat:@"Library/LaunchAgents/%s.plist", label];
-    char* arguments[] = { "/bin/launchctl", "bootstrap",
-                          (char*)[NSString stringWithFormat:@"gui/%u", getuid()].UTF8String,
-                          (char*)home_path(plist).UTF8String, NULL };
-    run_tool(arguments);
+    return true;
   }
+  // The app runs the daemon inside its bundle rather than a stopped service.
+  if (!label || app_bundled()) return spawn_daemon();
+
+  NSString* plist = [NSString stringWithFormat:@"Library/LaunchAgents/%s.plist", label];
+  char* arguments[] = { "/bin/launchctl", "bootstrap",
+                        (char*)[NSString stringWithFormat:@"gui/%u", getuid()].UTF8String,
+                        (char*)home_path(plist).UTF8String, NULL };
+  run_tool(arguments);
   return true;
 }
 
@@ -285,6 +295,7 @@ static const struct option_choice g_refresh_choices[] = {
   bool _running;
   bool _busy;
   NSString* _failure;
+  NSArray* _signal_sources;
 }
 
 - (NSString*)optionsPath {
@@ -317,6 +328,41 @@ static const struct option_choice g_refresh_choices[] = {
                                  userInfo:nil
                                   repeats:YES];
   [NSRunLoop.mainRunLoop addTimer:_timer forMode:NSRunLoopCommonModes];
+
+  if (app_bundled()) {
+    [self terminateOnSignals];
+    // Keeps the login item valid if the app has moved since it was enabled.
+    if ([NSFileManager.defaultManager fileExistsAtPath:self.loginItemPath]) {
+      [self writeLoginItem];
+    }
+    if (!_running) [self perform:DAEMON_START failure:@"Could not start borders"];
+  }
+}
+
+// AppKit exits on SIGTERM without calling applicationWillTerminate:, which would
+// leave the daemon running.
+- (void)terminateOnSignals {
+  NSMutableArray* sources = [NSMutableArray array];
+  for (int i = 0; i < 2; ++i) {
+    int number = i == 0 ? SIGTERM : SIGINT;
+    signal(number, SIG_IGN);
+    dispatch_source_t source = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL,
+                                                      number, 0,
+                                                      dispatch_get_main_queue());
+    dispatch_source_set_event_handler(source, ^{ [NSApp terminate:nil]; });
+    dispatch_resume(source);
+    [sources addObject:source];
+  }
+  _signal_sources = sources;
+}
+
+- (void)applicationWillTerminate:(NSNotification*)notification {
+  if (!app_bundled()) return;
+  dispatch_sync(_queue, ^{
+    if (!daemon_running()) return;
+    daemon_stop();
+    wait_for_daemon_state(false);
+  });
 }
 
 - (void)updateIcon {
@@ -428,27 +474,36 @@ static const struct option_choice g_refresh_choices[] = {
   if (_running) [self restartDaemon:sender];
 }
 
-- (void)toggleLoginItem:(id)sender {
-  NSString* path = self.loginItemPath;
-  NSFileManager* files = NSFileManager.defaultManager;
-  if ([files fileExistsAtPath:path]) {
-    _failure = [files removeItemAtPath:path error:NULL]
-               ? nil : @"Could not update Launch at Login";
-    return;
-  }
+- (void)openScreenRecordingSettings:(id)sender {
+  NSString* url = @"x-apple.systempreferences:com.apple.preference.security"
+                  "?Privacy_ScreenCapture";
+  [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:url]];
+}
 
+- (bool)writeLoginItem {
+  NSString* path = self.loginItemPath;
   NSString* executable = executable_path();
+  if (!executable) return false;
   NSDictionary* job = @{
     @"Label": @LOGIN_ITEM_LABEL,
-    @"ProgramArguments": executable ? @[ executable ] : @[],
+    @"ProgramArguments": @[ executable ],
     @"RunAtLoad": @YES,
     @"LimitLoadToSessionType": @"Aqua",
     @"ProcessType": @"Interactive"
   };
-  [files createDirectoryAtPath:path.stringByDeletingLastPathComponent
+  [NSFileManager.defaultManager
+    createDirectoryAtPath:path.stringByDeletingLastPathComponent
     withIntermediateDirectories:YES attributes:nil error:NULL];
-  _failure = executable && [job writeToFile:path atomically:YES]
-             ? nil : @"Could not update Launch at Login";
+  return [job writeToFile:path atomically:YES];
+}
+
+- (void)toggleLoginItem:(id)sender {
+  NSString* path = self.loginItemPath;
+  NSFileManager* files = NSFileManager.defaultManager;
+  bool success = [files fileExistsAtPath:path]
+                 ? [files removeItemAtPath:path error:NULL]
+                 : [self writeLoginItem];
+  _failure = success ? nil : @"Could not update Launch at Login";
 }
 
 - (NSMenuItem*)addItemTo:(NSMenu*)menu title:(NSString*)title action:(SEL)action {
@@ -496,6 +551,17 @@ static const struct option_choice g_refresh_choices[] = {
   menubar_options_merge(&displayed, &_saved);
 
   [self addItemTo:menu title:self.statusTitle action:NULL];
+  if (app_bundled()) {
+    const char* label = service_label();
+    if (label && service_loaded(label)) {
+      [self addItemTo:menu title:@"Homebrew service also runs borders" action:NULL];
+    }
+    if (!CGPreflightScreenCaptureAccess()) {
+      [self addItemTo:menu
+                title:@"Allow Screen Recording…"
+               action:@selector(openScreenRecordingSettings:)];
+    }
+  }
   [menu addItem:NSMenuItem.separatorItem];
 
   NSMenuItem* toggle = [self addItemTo:menu
@@ -544,7 +610,8 @@ static const struct option_choice g_refresh_choices[] = {
                 ? NSControlStateValueOn : NSControlStateValueOff;
   [menu addItem:NSMenuItem.separatorItem];
 
-  NSMenuItem* quit = [menu addItemWithTitle:@"Quit Menu"
+  NSMenuItem* quit = [menu addItemWithTitle:app_bundled() ? @"Quit AutoJankyBorders"
+                                                          : @"Quit Menu"
                                      action:@selector(terminate:)
                               keyEquivalent:@""];
   quit.target = NSApp;
@@ -567,6 +634,16 @@ int main(int argc, char** argv) {
     if (!acquire_single_instance_lock()) {
       fprintf(stderr, "[!] bordersbar is already running.\n");
       return 1;
+    }
+
+    // bordersrc can then call plain `borders` and reach the bundled binary.
+    if (app_bundled()) {
+      NSString* directory = executable_path().stringByDeletingLastPathComponent;
+      const char* path = getenv("PATH");
+      if (directory) {
+        setenv("PATH", [NSString stringWithFormat:@"%@:%s", directory,
+                                                  path ? path : "/usr/bin:/bin"].UTF8String, 1);
+      }
     }
 
     NSApplication* application = NSApplication.sharedApplication;

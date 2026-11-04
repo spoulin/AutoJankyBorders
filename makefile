@@ -1,12 +1,25 @@
 FILES = src/main.c src/parse.c src/mach.c src/hashtable.c src/events.c src/windows.c src/border.c src/auto_color.c src/animation.c
 LIBS = -framework AppKit -framework CoreVideo -F/System/Library/PrivateFrameworks/ -framework SkyLight
 MENUBAR_FILES = src/menubar/menubar.m src/menubar/options.c src/mach.c
+APP = bin/AutoJankyBorders.app
 
 all: | bin
 	clang -std=c99 -O3 -g $(FILES) -o bin/borders $(LIBS)
 
 menubar: | bin
 	clang -std=c99 -O3 -g -fobjc-arc $(MENUBAR_FILES) -o bin/bordersbar -framework AppKit
+
+app: all menubar
+	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
+	cp bin/bordersbar $(APP)/Contents/MacOS/AutoJankyBorders
+	cp bin/borders $(APP)/Contents/MacOS/borders
+	cp src/menubar/Info.plist $(APP)/Contents/Info.plist
+	cp src/menubar/AppIcon.icns $(APP)/Contents/Resources/AppIcon.icns
+	codesign --force --sign - $(APP)/Contents/MacOS/borders
+	codesign --force --sign - $(APP)
+
+install-app: app
+	ditto $(APP) /Applications/AutoJankyBorders.app
 
 debug: | bin
 	clang -std=c99 -O0 -g -DDEBUG $(FILES) -o bin/debug $(LIBS)

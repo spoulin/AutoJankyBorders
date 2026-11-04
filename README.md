@@ -36,7 +36,7 @@ without requiring every application to follow the same design language.
 - Colors are cached per window so resizing remains responsive.
 - `default_color=0xAARRGGBB` provides a configurable capture fallback.
 - Existing per-window settings through `apply-to=<window-id>` are preserved.
-- `bordersbar` is an optional menu bar app to control the running daemon.
+- `AutoJankyBorders.app` starts the borders and a menu bar icon together.
 
 ### Before and after
 
@@ -216,28 +216,40 @@ brew upgrade --fetch-HEAD autojankyborders
 brew services start autojankyborders
 ```
 
-### Menu bar app
+### Run it as an app
 
-`bordersbar` is a small separate app that puts an icon in the menu bar. It can
-start, stop, and restart `borders`, change the color mode, style, width, and
-color refresh, and open `bordersrc` in a text editor. It does not need Screen
-Recording permission, and `borders` keeps running without it.
+`AutoJankyBorders.app` contains both the menu bar icon and `borders`. Opening the
+app starts the borders. Quitting it removes the icon and the borders together. It
+has no Dock icon.
 
 ```bash
-make menubar
-./bin/bordersbar
+make install-app
+open /Applications/AutoJankyBorders.app
 ```
 
-The Homebrew formula installs it as `bordersbar`. Run it once, then enable
-**Launch at Login** in its menu to start it automatically. This setting adds
-`~/Library/LaunchAgents/com.github.spoulin.bordersbar.plist`. **Quit Menu** closes
-only the menu app.
+The Homebrew service also starts `borders`, and only one daemon can run at a time.
+Stop the service first, or the app controls that daemon and the service starts it
+again at the next login:
 
-If the Homebrew service is installed, **Stop** unloads the service with
-`launchctl` until you start it again from the menu or log in again. A plain
-`kill` would not work because the service is kept alive. Without the service, the
-app starts the `borders` binary next to its own executable and stops any process
-named `borders`.
+```bash
+brew services stop autojankyborders
+```
+
+macOS asks for Screen Recording permission for the app, separately from any
+permission given to the Homebrew binary. Until it is granted, the menu shows
+**Allow Screen Recording…**, and borders use `default_color`. Choose **Restart**
+after you grant it. The app has only a local signature, so macOS may ask again
+after you rebuild it.
+
+The menu can stop, start, and restart the borders, change the color mode, style,
+width, and color refresh, and open `bordersrc` in a text editor. **Launch at Login**
+adds `~/Library/LaunchAgents/com.github.spoulin.bordersbar.plist`. Install the app
+in `/Applications` before you enable it.
+
+`bordersrc` still applies, and a plain `borders` command in it reaches the binary
+inside the app.
+
+#### Saved choices
 
 Choices made in the menu are saved in `~/.config/borders/menu-options`, one
 argument per line. The app sends them each time the daemon starts, so they
@@ -246,8 +258,8 @@ The daemon cannot report its settings, so options you have not chosen in the men
 are shown as read from `bordersrc`. A value that was changed from the command line
 does not appear in the menu.
 
-To also apply the saved choices when the menu app is not running, add these lines
-to `bordersrc` before the line that runs `borders`:
+To also apply the saved choices when the app is not running, add these lines to
+`bordersrc` before the line that runs `borders`:
 
 ```bash
 menu_options="$HOME/.config/borders/menu-options"
@@ -255,6 +267,15 @@ if [ -f "$menu_options" ]; then
   while IFS= read -r option; do options+=("$option"); done < "$menu_options"
 fi
 ```
+
+#### Menu without the app
+
+The Homebrew formula installs the same menu as a plain `bordersbar` command, and
+`make menubar` builds it as `bin/bordersbar`. It only controls the daemon, so
+**Quit Menu** leaves the borders running. With the Homebrew service, **Stop** unloads
+the service with `launchctl` until you start it again from the menu or log in again.
+Without the service, it starts the `borders` binary next to its own executable and
+stops any process named `borders`.
 
 ### Configuring the appearance
 You can configure the appearance directly when starting the `borders` process

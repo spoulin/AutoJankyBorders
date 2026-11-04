@@ -8,7 +8,9 @@ AutoJankyBorders is a macOS-only C99 fork of [JankyBorders](https://github.com/F
 
 ```bash
 make            # release build: bin/borders
-make menubar    # menu bar app: bin/bordersbar
+make menubar    # menu only: bin/bordersbar
+make app        # all-in-one bundle: bin/AutoJankyBorders.app (menu + daemon, ad hoc signed)
+make install-app # copies the bundle to /Applications
 make debug      # -DDEBUG build: bin/debug (enables debug() output and a watcher on all SkyLight events)
 make asan       # ASan/UBSan build of bin/debug, then runs it
 make test       # builds and runs bin/auto_color_test and bin/menubar_options_test
@@ -52,9 +54,11 @@ There is no linter, and `make test` has no way to select a single case. New `.c`
 
 **yabai integration (`src/misc/yabai.h`):** enabled by the `#define _YABAI_INTEGRATION` in that header. It creates proxy borders (`is_proxy`, `external_proxy_wid`) that track window proxies during yabai animations, using `src/animation.c` (CVDisplayLink).
 
-**Menu bar app (`src/menubar/`):** a separate `bordersbar` process, deliberately not part of the daemon: `event_callback` in `src/main.c` drains the main SkyLight connection's events, which AppKit also needs, and the daemon's run loop sources are registered only in the default mode, so they would stall while a menu is open.
+**Menu bar app (`src/menubar/`):** a process separate from the daemon, even inside `AutoJankyBorders.app`, where both executables sit in `Contents/MacOS`. It is deliberately not part of the daemon: `event_callback` in `src/main.c` drains the main SkyLight connection's events, which AppKit also needs, and the daemon's run loop sources are registered only in the default mode, so they would stall while a menu is open.
 - It sends arguments straight over Mach using `src/mach.c`. Do not run `borders <args>` from it: with no daemon registered, that child becomes the daemon.
 - Mach messages are one-way, so the daemon's real settings cannot be read. The menu shows `bordersrc` values (best-effort scan) overlaid with the saved choices in `~/.config/borders/menu-options`, and resends those choices whenever the daemon reappears.
+- `app_bundled()` selects the mode. The bundle starts its own daemon on launch and stops it on quit, and macOS attributes Screen Recording to the app. The bare `bordersbar` leaves the daemon running on quit and disclaims responsibility so that permission stays with `borders`.
+- Spawned daemons reset signal dispositions, because AppKit ignores `SIGTERM` and a child inherits that.
 - `options.c` is pure C covered by `make test`; AppKit, `launchctl`, and process handling stay in `menubar.m`.
 - Daemon options offered in the menu must be added to `options.c` (with validation that matches `parse_settings`) and to the choice tables in `menubar.m`.
 
