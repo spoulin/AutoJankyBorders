@@ -279,26 +279,28 @@ bool auto_color_sample_corners_rgba(const uint8_t* pixels,
   return true;
 }
 
+static bool screen_capture_allowed(void) {
+  static bool did_request_permission = false;
+  static bool did_report_permission_error = false;
+  if (CGPreflightScreenCaptureAccess()) return true;
+  if (!did_request_permission) {
+    did_request_permission = true;
+    CGRequestScreenCaptureAccess();
+  }
+  if (CGPreflightScreenCaptureAccess()) return true;
+  if (!did_report_permission_error) {
+    fprintf(stderr,
+            "[?] Borders: Screen Recording permission is required for "
+            "automatic colors; using default_color.\n");
+    did_report_permission_error = true;
+  }
+  return false;
+}
+
 bool auto_color_sample_window(uint32_t window_id,
                               uint8_t alpha,
                               uint32_t* color) {
-  static bool did_request_permission = false;
-  static bool did_report_permission_error = false;
-  if (!CGPreflightScreenCaptureAccess()) {
-    if (!did_request_permission) {
-      did_request_permission = true;
-      CGRequestScreenCaptureAccess();
-    }
-    if (!CGPreflightScreenCaptureAccess()) {
-      if (!did_report_permission_error) {
-        fprintf(stderr,
-                "[?] Borders: Screen Recording permission is required for "
-                "color=auto; using default_color.\n");
-        did_report_permission_error = true;
-      }
-      return false;
-    }
-  }
+  if (!screen_capture_allowed()) return false;
 
   typedef CGImageRef (*window_list_create_image_fn)(CGRect,
                                                      CGWindowListOption,
@@ -357,7 +359,7 @@ bool auto_color_sample_window(uint32_t window_id,
 bool auto_color_sample_window_corners(uint32_t window_id,
                                       uint8_t alpha,
                                       struct auto_colors* colors) {
-  if (!colors || !CGPreflightScreenCaptureAccess()) return false;
+  if (!colors || !screen_capture_allowed()) return false;
   typedef CGImageRef (*window_list_create_image_fn)(CGRect,
                                                      CGWindowListOption,
                                                      CGWindowID,
