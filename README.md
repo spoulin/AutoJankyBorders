@@ -443,3 +443,5 @@ If AutoJankyBorders saves you from picking a border color for every window,
 you can buy me a coffee.
 
 <a href="https://buymeacoffee.com/stephanepoulin"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="40"></a>
+
+Made by [Stéphane Poulin](https://www.stephanepoulin.com).
