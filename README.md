@@ -1,5 +1,7 @@
 # AutoJankyBorders
 
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/stephanepoulin)
+
 <img align="right" width="50%" src="images/screenshot.png" alt="Screenshot">
 
 *AutoJankyBorders* is a community fork of
@@ -434,3 +436,10 @@ AutoJankyBorders remains licensed under the GNU General Public License v3.0,
 as required by the original project. See [LICENSE](LICENSE). Copyright and
 credit for the original JankyBorders implementation remain with its original
 authors; subsequent changes are maintained in this fork's Git history.
+
+## Support
+
+If AutoJankyBorders saves you from picking a border color for every window,
+you can buy me a coffee.
+
+<a href="https://buymeacoffee.com/stephanepoulin"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="40"></a>
