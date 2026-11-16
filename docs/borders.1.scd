@@ -52,7 +52,19 @@ API, thereby being faster than comparable tools.
 	Periodically resamples the focused window in automatic color modes. Use
 	*0* to disable periodic refreshes (the default). Values from *250* ms are
 	accepted; *1000* ms is recommended. Refreshes pause while the window is
-	being moved or resized.
+	being moved or resized. This is the shortest delay: it doubles each time
+	the color stays the same, up to *color_refresh_max*, and drops back as
+	soon as the color changes. Switching windows reuses each window's last
+	color; a window is also sampled when its title changes, when it is
+	resized, and when it appears.
+
+*color_refresh_max=<milliseconds>*
+	Longest delay between periodic samples of the focused window when its
+	color does not change (default *120000*). Each capture makes macOS show
+	its screen recording indicator, so a longer delay shows it less often,
+	and a changed color can take up to this long to be noticed. Use *0* to
+	refresh at a fixed *color_refresh* interval. Values from *250* ms are
+	accepted.
 
 *color_transition=<milliseconds>*
 	Smoothly morphs the displayed automatic color to each newly sampled color.

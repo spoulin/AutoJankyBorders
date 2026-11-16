@@ -121,6 +121,18 @@ uint32_t parse_settings(struct settings* settings, int count, char** arguments) 
         printf("[?] Borders: color_refresh must be 0 or at least 250 ms\n");
       }
     }
+    else if (str_starts_with(arguments[i], "color_refresh_max=")) {
+      unsigned int refresh_max_ms;
+      char trailing;
+      if (sscanf(arguments[i], "color_refresh_max=%u%c",
+                 &refresh_max_ms, &trailing) == 1
+          && (refresh_max_ms == 0 || refresh_max_ms >= 250)) {
+        settings->color_refresh_max_ms = refresh_max_ms;
+        update_mask |= BORDER_UPDATE_MASK_SETTING;
+      } else {
+        printf("[?] Borders: color_refresh_max must be 0 or at least 250 ms\n");
+      }
+    }
     else if (str_starts_with(arguments[i], "color_transition=")) {
       unsigned int transition_ms;
       char trailing;

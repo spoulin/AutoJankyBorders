@@ -127,6 +127,26 @@ static void border_transition_to_colors(struct border* border,
   border_schedule_color_transition(border->target_wid, generation);
 }
 
+// Called after every capture. A color that stays the same doubles the delay
+// before the next periodic sample, up to color_refresh_max; a color that
+// changes brings it back to color_refresh. Each capture shows macOS's screen
+// recording indicator, so a window whose content is stable is rarely sampled.
+static void border_note_color_sample(struct border* border,
+                                     struct settings* settings,
+                                     bool changed) {
+  double minimum = settings->color_refresh_ms / 1000.0;
+  double maximum = settings->color_refresh_max_ms / 1000.0;
+  if (changed || maximum <= minimum || border->color_refresh_interval <= 0.0) {
+    border->color_refresh_interval = minimum;
+  } else {
+    border->color_refresh_interval *= 2.0;
+    if (border->color_refresh_interval > maximum) {
+      border->color_refresh_interval = maximum;
+    }
+  }
+  border->last_color_refresh = CFAbsoluteTimeGetCurrent();
+}
+
 struct settings* border_get_settings(struct border* border) {
   assert(pthread_main_np() != 0);
   return border->setting_override.enabled
@@ -190,6 +210,7 @@ static void border_draw(struct border* border, CGRect frame, struct settings* se
       uint32_t sampled_color = 0;
       uint8_t alpha = settings->default_color >> 24;
       bool captured;
+      bool changed;
       if (settings->auto_gradient) {
         struct auto_colors sampled_colors;
         captured = auto_color_sample_window_corners(border->target_wid,
@@ -207,6 +228,11 @@ static void border_draw(struct border* border, CGRect frame, struct settings* se
             settings->default_color, settings->default_color
           };
         }
+        changed = !border->sampled_color_valid
+                  || gradient_difference(border->last_captured_colors,
+                                         sampled_colors)
+                     > settings->color_threshold;
+        border->last_captured_colors = sampled_colors;
         border_transition_to_colors(border, settings, sampled_colors);
       } else {
         captured = auto_color_sample_window(border->target_wid,
@@ -215,12 +241,17 @@ static void border_draw(struct border* border, CGRect frame, struct settings* se
         if (captured && settings->invert_auto_color) {
           sampled_color = auto_color_invert(sampled_color);
         }
-        border_transition_to_color(border, settings,
-                                   captured ? sampled_color
-                                            : settings->default_color);
+        if (!captured) sampled_color = settings->default_color;
+        changed = !border->sampled_color_valid
+                  || color_difference(border->last_captured_color,
+                                      sampled_color)
+                     > settings->color_threshold;
+        border->last_captured_color = sampled_color;
+        border_transition_to_color(border, settings, sampled_color);
       }
       // Cache the fallback too: a denied capture must not be retried for every
       // geometry update while a window is being resized.
+      border_note_color_sample(border, settings, changed);
       border->sampled_color_valid = true;
       border->needs_color_sample = false;
     }

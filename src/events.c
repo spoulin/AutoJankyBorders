@@ -69,7 +69,11 @@ static void window_modify_handler(uint32_t event, uint32_t* window_id, size_t _,
   } else if (event == EVENT_WINDOW_RESIZE) {
     debug("Window Resize: %d\n", wid);
     struct border* border = table_find(windows, &wid);
-    if (border) border->last_geometry_change = CFAbsoluteTimeGetCurrent();
+    if (border) {
+      border->last_geometry_change = CFAbsoluteTimeGetCurrent();
+      // Sampled once the resize is over (see color_refresh_timer_callback).
+      if (border_uses_auto_color(border)) border->needs_resize_sample = true;
+    }
     windows_window_update(windows, wid);
   } else if (event == EVENT_WINDOW_REORDER) {
     debug("Window Reorder (and focus): %d\n", wid);
@@ -121,13 +125,30 @@ static void color_refresh_timer_callback(CFRunLoopTimerRef timer, void* info) {
     struct bucket* bucket = g_windows.buckets[i];
     while (bucket) {
       struct border* border = bucket->value;
-      if (border && border->focused && border_uses_auto_color(border)) {
-        struct settings* settings = border_get_settings(border);
-        double interval = (double)settings->color_refresh_ms / 1000.0;
+      if (border && border_uses_auto_color(border)) {
         bool geometry_is_settled = now - border->last_geometry_change >= 0.25;
-        if (interval > 0.0
-            && geometry_is_settled
-            && now - border->last_color_refresh >= interval) {
+        bool sample = false;
+        if (border->needs_resize_sample && geometry_is_settled) {
+          border->needs_resize_sample = false;
+          sample = true;
+        }
+        if (border->focused) {
+          struct settings* settings = border_get_settings(border);
+          double minimum = (double)settings->color_refresh_ms / 1000.0;
+          double maximum = (double)settings->color_refresh_max_ms / 1000.0;
+          // The delay grows while the color stays the same (see
+          // border_note_color_sample); settings may have changed since.
+          double interval = border->color_refresh_interval;
+          if (interval < minimum) interval = minimum;
+          if (maximum > minimum && interval > maximum) interval = maximum;
+          if (maximum <= minimum) interval = minimum;
+          if (minimum > 0.0
+              && geometry_is_settled
+              && now - border->last_color_refresh >= interval) {
+            sample = true;
+          }
+        }
+        if (sample) {
           border->last_color_refresh = now;
           border->needs_color_sample = true;
           border->needs_redraw = true;

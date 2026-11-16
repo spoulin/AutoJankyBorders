@@ -76,7 +76,21 @@ channel is also applied to colors sampled successfully.\&
 Periodically resamples the focused window in automatic color modes.\& Use
 \fB0\fR to disable periodic refreshes (the default).\& Values from \fB250\fR ms are
 accepted; \fB1000\fR ms is recommended.\& Refreshes pause while the window is
-being moved or resized.\&
+being moved or resized.\& This is the shortest delay: it doubles each time
+the color stays the same, up to \fBcolor_refresh_max\fR, and drops back as
+soon as the color changes.\& Switching windows reuses each window's last
+color; a window is also sampled when its title changes, when it is
+resized, and when it appears.\&
+.PP
+.RE
+\fBcolor_refresh_max=<milliseconds>\fR
+.RS 4
+Longest delay between periodic samples of the focused window when its
+color does not change (default \fB120000\fR).\& Each capture makes macOS show
+its screen recording indicator, so a longer delay shows it less often,
+and a changed color can take up to this long to be noticed.\& Use \fB0\fR to
+refresh at a fixed \fBcolor_refresh\fR interval.\& Values from \fB250\fR ms are
+accepted.\&
 .PP
 .RE
 \fBcolor_transition=<milliseconds>\fR

@@ -341,6 +341,22 @@ Use `color_refresh=0` (the default) to disable it. Values below 250 ms are
 rejected to avoid excessive full-window captures. Refreshing pauses briefly
 while a window is being moved or resized.
 
+Every capture makes macOS show its screen recording indicator in the menu bar
+for 10 to 20 seconds, so captures are kept rare:
+
+- `color_refresh` is the shortest delay. Each time the focused window's color
+  stays the same, the delay doubles, up to `color_refresh_max` (default
+  `120000`, two minutes). It drops back to `color_refresh` as soon as the color
+  changes. Use `color_refresh_max=0` to refresh at a fixed `color_refresh`
+  interval.
+- Switching between windows reuses each window's last color instead of taking
+  a new capture.
+- A window is sampled again when its title changes, when it is resized, and
+  when it first appears.
+
+A window whose content changes without a title change, after a quiet period,
+can keep its old border color for up to `color_refresh_max`.
+
 Set `color_transition` to morph smoothly from the displayed color to a newly
 sampled color without taking additional screenshots during the animation.
 `color_threshold` ignores small per-channel differences caused by capture
@@ -348,6 +364,7 @@ noise. A responsive starting point is:
 
 ```bash
 color_refresh=1000
+color_refresh_max=120000
 color_transition=300
 color_threshold=6
 ```

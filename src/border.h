@@ -42,6 +42,7 @@ struct settings {
   bool auto_gradient;
   uint32_t default_color;
   uint32_t color_refresh_ms;
+  uint32_t color_refresh_max_ms;
   uint32_t color_transition_ms;
   uint8_t color_threshold;
 
@@ -94,6 +95,12 @@ struct border {
   bool needs_color_sample;
   uint64_t color_refresh_generation;
   CFAbsoluteTime last_color_refresh;
+  // Current delay between periodic samples of the focused window: doubles while
+  // the color does not change, up to color_refresh_max_ms (0 = not started).
+  double color_refresh_interval;
+  bool needs_resize_sample;
+  uint32_t last_captured_color;
+  struct auto_colors last_captured_colors;
   CFAbsoluteTime last_geometry_change;
   uint32_t transition_start_color;
   uint32_t transition_target_color;

@@ -172,16 +172,19 @@ static bool windows_window_focus(struct table* windows, uint32_t wid) {
     while (bucket) {
       if (bucket->value) {
         struct border* border = bucket->value;
+        // Focus changes keep each window's cached color: a capture shows the
+        // screen recording indicator, and the color was sampled while the
+        // window was focused. A window never sampled is captured when drawn.
         if (border->focused && border->target_wid != wid) {
           border->focused = false;
-          if (border_uses_auto_color(border)) border->needs_color_sample = true;
           border->needs_redraw = true;
           border_update(border, true);
         }
 
         if (!border->focused && border->target_wid == wid) {
           border->focused = true;
-          if (border_uses_auto_color(border)) border->needs_color_sample = true;
+          // The next periodic check comes after this window's own delay.
+          border->last_color_refresh = CFAbsoluteTimeGetCurrent();
           border->needs_redraw = true;
           border_update(border, true);
         }
