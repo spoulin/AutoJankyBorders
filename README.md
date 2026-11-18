@@ -248,6 +248,11 @@ width, and color refresh, and open `bordersrc` in a text editor. **Launch at Log
 adds `~/Library/LaunchAgents/com.github.spoulin.bordersbar.plist`. Install the app
 in `/Applications` before you enable it.
 
+**Auto Restart** restarts the borders every hour or every four hours (off by
+default). It waits until the keyboard and mouse have been idle for five minutes,
+because borders vanish for a moment and every window is sampled again. Only the
+app offers it, and the choice is kept in its preferences.
+
 `bordersrc` still applies, and a plain `borders` command in it reaches the binary
 inside the app.
 

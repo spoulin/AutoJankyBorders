@@ -17,6 +17,9 @@
 #define LOGIN_ITEM_LABEL "com.github.spoulin.bordersbar"
 #define STATE_TIMEOUT_US 5000000
 #define STATE_POLL_US 100000
+#define AUTO_RESTART_KEY @"AutoRestartInterval"
+// Keyboard and mouse must have been idle this long before an automatic restart.
+#define AUTO_RESTART_IDLE_SECONDS 300.0
 
 extern char** environ;
 
@@ -282,6 +285,19 @@ static const struct option_choice g_refresh_choices[] = {
   { "5 s", "color_refresh=5000" }
 };
 
+// Automatic restarts, in seconds. Only the app bundle offers them: it owns the
+// daemon, while the bare `bordersbar` may sit next to a Homebrew service.
+struct restart_choice {
+  const char* title;
+  NSInteger seconds;
+};
+
+static const struct restart_choice g_restart_choices[] = {
+  { "Off", 0 },
+  { "Every Hour", 3600 },
+  { "Every 4 Hours", 14400 }
+};
+
 #define CHOICE_COUNT(choices) (sizeof(choices) / sizeof(*(choices)))
 
 @interface MenuBarController : NSObject <NSApplicationDelegate, NSMenuDelegate>
@@ -296,6 +312,7 @@ static const struct option_choice g_refresh_choices[] = {
   bool _busy;
   NSString* _failure;
   NSArray* _signal_sources;
+  CFAbsoluteTime _daemon_since;
 }
 
 - (NSString*)optionsPath {
@@ -387,9 +404,39 @@ static const struct option_choice g_refresh_choices[] = {
 // is kept alive), so the saved choices are sent whenever it comes back.
 - (void)pollDaemon {
   bool running = daemon_running();
-  if (running && !_running && !_busy) [self sendSavedOptionsAfterStartup];
+  if (running && !_running && !_busy) {
+    [self sendSavedOptionsAfterStartup];
+    _daemon_since = CFAbsoluteTimeGetCurrent();
+  }
   _running = running;
   [self updateIcon];
+  [self autoRestartIfDue];
+}
+
+- (NSInteger)autoRestartInterval {
+  return app_bundled()
+         ? [NSUserDefaults.standardUserDefaults integerForKey:AUTO_RESTART_KEY]
+         : 0;
+}
+
+// A long-running daemon sometimes handles some windows less well; a fresh one
+// fixes that. The restart waits for a pause, since borders vanish for a moment
+// and every window is captured again (the screen recording indicator shows).
+- (void)autoRestartIfDue {
+  NSInteger interval = self.autoRestartInterval;
+  if (interval <= 0 || !_running || _busy || _daemon_since <= 0) return;
+  if (CFAbsoluteTimeGetCurrent() - _daemon_since < interval) return;
+  double idle = CGEventSourceSecondsSinceLastEventType(
+                  kCGEventSourceStateHIDSystemState, kCGAnyInputEventType);
+  if (idle < AUTO_RESTART_IDLE_SECONDS) return;
+  NSLog(@"Restarting borders automatically after %.0f s (idle %.0f s)",
+        CFAbsoluteTimeGetCurrent() - _daemon_since, idle);
+  [self perform:DAEMON_RESTART failure:@"Could not restart borders"];
+}
+
+- (void)selectAutoRestart:(NSMenuItem*)item {
+  [NSUserDefaults.standardUserDefaults setInteger:[item.representedObject integerValue]
+                                           forKey:AUTO_RESTART_KEY];
 }
 
 - (void)perform:(enum daemon_action)action failure:(NSString*)failure {
@@ -402,7 +449,10 @@ static const struct option_choice g_refresh_choices[] = {
       self->_busy = false;
       self->_running = daemon_running();
       self->_failure = success ? nil : failure;
-      if (self->_running) [self sendSavedOptionsAfterStartup];
+      if (self->_running) {
+        [self sendSavedOptionsAfterStartup];
+        self->_daemon_since = CFAbsoluteTimeGetCurrent();
+      }
       [self updateIcon];
     });
   });
@@ -593,6 +643,23 @@ static const struct option_choice g_refresh_choices[] = {
   [self addSubmenuTo:menu title:@"Color Refresh" choices:g_refresh_choices
                count:CHOICE_COUNT(g_refresh_choices) displayed:&displayed];
   [menu addItem:NSMenuItem.separatorItem];
+
+  if (app_bundled()) {
+    NSMenu* restarts = [[NSMenu alloc] init];
+    restarts.autoenablesItems = NO;
+    NSInteger interval = self.autoRestartInterval;
+    for (size_t i = 0; i < CHOICE_COUNT(g_restart_choices); ++i) {
+      NSMenuItem* item = [self addItemTo:restarts
+                                   title:@(g_restart_choices[i].title)
+                                  action:@selector(selectAutoRestart:)];
+      item.representedObject = @(g_restart_choices[i].seconds);
+      item.state = interval == g_restart_choices[i].seconds
+                   ? NSControlStateValueOn : NSControlStateValueOff;
+    }
+    NSMenuItem* parent = [self addItemTo:menu title:@"Auto Restart" action:NULL];
+    parent.enabled = YES;
+    parent.submenu = restarts;
+  }
 
   NSFileManager* files = NSFileManager.defaultManager;
   NSMenuItem* edit = [self addItemTo:menu
